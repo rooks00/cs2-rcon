@@ -59,7 +59,7 @@ import {
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { COMMAND_LIBRARY, DEFAULT_MAPS, GAME_MODE_PRESETS, getMapChangeCommand, quoteRcon, type GameModePreset } from "@/lib/commands";
 import { DEMO_STATUS, executeDemoCommand } from "@/lib/demo";
-import { enrichStatusWithJson, parseBanList, parseCvarList, parseIntegerCvar, parseMaps, parseStatus } from "@/lib/parsers";
+import { enrichStatusWithJson, mergeServerMaps, parseBanList, parseCvarList, parseIntegerCvar, parseMaps, parseStatus, parseWorkshopMapList } from "@/lib/parsers";
 import { DEFAULT_STORED_STATE, exportStoredState, loadStoredState, saveStoredState } from "@/lib/storage";
 import type {
   BanEntry,
@@ -402,8 +402,8 @@ export function RconDashboard() {
   const refreshMaps = async () => {
     setMapsLoading(true);
     try {
-      const [result] = await runCommands(["maps *"]);
-      const parsed = parseMaps(result.response);
+      const [result, workshopResult] = await runCommands(["maps *", "ds_workshop_listmaps"]);
+      const parsed = mergeServerMaps(parseMaps(result.response), parseWorkshopMapList(workshopResult.response));
       const workshopIds = [...new Set(parsed.flatMap((map) => map.workshopId ? [map.workshopId] : []))];
       const titles = await requestWorkshopTitles(workshopIds);
       const enriched = parsed.map((map) => map.workshopId && titles[map.workshopId] ? { ...map, displayName: titles[map.workshopId] } : map);
@@ -757,15 +757,17 @@ export function RconDashboard() {
                       : [...current.favoriteMaps, name],
                   }))}
                   onChange={(map) => confirmAction({
-                    title: `${map.workshopId ? "Host Workshop map" : "Change level"} to ${map.displayName ?? map.name}?`,
+                    title: `${map.category === "Workshop" ? "Change Workshop map" : "Change level"} to ${map.displayName ?? map.name}?`,
                     body: map.workshopId
                       ? `Relay identified Workshop item ${map.workshopId} from the server's installed-map path and will run host_workshop_map ${map.workshopId}. The current match will end while Steam mounts the map.`
-                      : "The current match will end and every connected player will load the selected map using changelevel.",
-                    label: map.workshopId ? "Host Workshop map" : "Change level",
+                      : map.category === "Workshop"
+                        ? `CS2 listed ${map.name} as an available Workshop collection map without exposing its published-file ID. Relay will use ds_workshop_changelevel ${map.name}, the dedicated command for an existing Workshop map.`
+                        : "The current match will end and every connected player will load the selected map using changelevel.",
+                    label: map.workshopId ? "Host Workshop map" : map.category === "Workshop" ? "Change Workshop map" : "Change level",
                     tone: "warning",
                     action: async () => {
                       const command = getMapChangeCommand(map);
-                      await runQuick(command, map.workshopId ? `Workshop map ${map.displayName ?? map.name} requested.` : `Changing level to ${map.name}.`);
+                      await runQuick(command, map.category === "Workshop" ? `Workshop map ${map.displayName ?? map.name} requested.` : `Changing level to ${map.name}.`);
                       setSnapshot((current) => current ? { ...current, map: map.name, updatedAt: Date.now() } : current);
                     },
                   })}
@@ -1168,7 +1170,7 @@ function MapsView({ maps, total, currentMap, favorites, loading, search, setSear
                   <button className={`favorite-button ${isFavorite ? "is-favorite" : ""}`} onClick={() => onFavorite(map.name)} aria-label={`${isFavorite ? "Remove" : "Add"} ${map.name} ${isFavorite ? "from" : "to"} favorites`}><Star size={15} fill={isFavorite ? "currentColor" : "none"} /></button>
                   <h3 title={displayName}>{displayName}</h3>
                   {map.workshopId && displayName !== map.name && <code className="map-card__internal">{map.name}</code>}
-                  <button className={`button ${isCurrent ? "button--current" : "button--tiny"}`} onClick={() => !isCurrent && onChange(map)} disabled={isCurrent}>{isCurrent ? <><Radio size={13} />Current</> : <>{map.workshopId ? "Host Workshop map" : "Change level"} <ChevronRight size={13} /></>}</button>
+                  <button className={`button ${isCurrent ? "button--current" : "button--tiny"}`} onClick={() => !isCurrent && onChange(map)} disabled={isCurrent}>{isCurrent ? <><Radio size={13} />Current</> : <>{map.workshopId ? "Host Workshop map" : map.category === "Workshop" ? "Change Workshop map" : "Change level"} <ChevronRight size={13} /></>}</button>
                 </div>
               </article>
             );

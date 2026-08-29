@@ -90,6 +90,7 @@ export function quoteRcon(value: string): string {
 
 export function getMapChangeCommand(map: ServerMap): string {
   if (map.workshopId && /^\d+$/.test(map.workshopId)) return `host_workshop_map ${map.workshopId}`;
+  if (map.category === "Workshop") return `ds_workshop_changelevel ${map.name}`;
   return `changelevel ${map.name}`;
 }
 

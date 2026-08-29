@@ -76,6 +76,7 @@ export async function executeDemoCommand(command: string): Promise<{ response: s
     response = `"game_mode" = "${demoGameMode}"`;
   }
   else if (normalized === "maps *" || normalized === "maps") response = DEMO_MAPS;
+  else if (normalized === "ds_workshop_listmaps") response = "aim_botz\nsurf_utopia";
   else if (normalized === "listid") response = `ID filter list:\n1 [U:1:77881221] : permanent\n2 STEAM_1:0:8827319 : 45 minutes`;
   else if (normalized === "listip") response = `IP filter list:\n1 198.51.100.88 : permanent`;
   else if (normalized === "cvarlist") response = DEMO_CVARS;

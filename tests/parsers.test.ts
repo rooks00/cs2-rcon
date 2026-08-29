@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { enrichStatusWithJson, parseBanList, parseCvarList, parseIntegerCvar, parseMaps, parseStatus } from "../lib/parsers";
+import { enrichStatusWithJson, mergeServerMaps, parseBanList, parseCvarList, parseIntegerCvar, parseMaps, parseStatus, parseWorkshopMapList } from "../lib/parsers";
 
 const STATUS = `hostname: RELAY // TEST
 version : 1.41.3.2/14132 10581 secure
@@ -76,6 +76,28 @@ describe("parseMaps", () => {
     expect(maps).toEqual([
       { name: "aim_botz", category: "Workshop", workshopId: "3070244462" },
       { name: "surf_utopia", category: "Workshop", workshopId: "3251335864" },
+    ]);
+  });
+});
+
+describe("Workshop map inventory", () => {
+  it("reads the filename-per-line output from ds_workshop_listmaps", () => {
+    expect(parseWorkshopMapList("aim_botz\r\nsurf_utopia.vpk\n3: awp_lego2\n")).toEqual([
+      { name: "aim_botz", category: "Workshop" },
+      { name: "awp_lego2", category: "Workshop" },
+      { name: "surf_utopia", category: "Workshop" },
+    ]);
+  });
+
+  it("merges mounted Workshop names with maps-star results", () => {
+    const merged = mergeServerMaps(
+      [{ name: "de_mirage", category: "Defusal" }],
+      [{ name: "aim_botz", category: "Workshop" }, { name: "surf_utopia", category: "Workshop" }],
+    );
+    expect(merged).toEqual([
+      { name: "aim_botz", category: "Workshop" },
+      { name: "de_mirage", category: "Defusal" },
+      { name: "surf_utopia", category: "Workshop" },
     ]);
   });
 });

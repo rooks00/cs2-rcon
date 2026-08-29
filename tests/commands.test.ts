@@ -32,4 +32,8 @@ describe("getMapChangeCommand", () => {
   it("uses changelevel only for ordinary installed maps", () => {
     expect(getMapChangeCommand({ name: "de_mirage", category: "Defusal" })).toBe("changelevel de_mirage");
   });
+
+  it("uses the dedicated collection command when CS2 exposes a Workshop name but no ID", () => {
+    expect(getMapChangeCommand({ name: "surf_utopia", category: "Workshop" })).toBe("ds_workshop_changelevel surf_utopia");
+  });
 });

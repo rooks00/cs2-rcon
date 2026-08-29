@@ -24,7 +24,7 @@ A normal browser cannot open the raw TCP connection required by the [Source RCON
 - Live `status` + `status_json` polling with both legacy and current CS2 player formats
 - Kick and permanent Steam-ID ban actions
 - `listid` + `listip`, individual unban, and batched “unban all” with `writeid`/`writeip`
-- Dynamic installed-map discovery through `maps *`, including Workshop IDs parsed from `maps/workshop/<id>/<name>.vpk` and human titles resolved from Steam
+- Complete map discovery by merging `maps *` with `ds_workshop_listmaps`, including Workshop IDs parsed from paths and human titles resolved from Steam
 - Safe stock-map `changelevel` confirmations, map favorites, and automatic `host_workshop_map <id>` routing for Workshop cards
 - Dedicated game-mode manager with live `game_type`/`game_mode` values, the complete current Valve matrix, and non-disruptive staging
 - Raw terminal with history, response timing, copy, and arrow-key recall
@@ -37,6 +37,8 @@ A normal browser cannot open the raw TCP connection required by the [Source RCON
 “All commands” means the raw console forwards any valid command your particular server exposes, including plugin commands. Relay does not pretend every command exists on every CS2 build; syncing `cvarlist` makes the reference match the live server.
 
 The Game Modes section uses the values shipped in CS2's current `gamemodes.txt`, including Retakes at `game_type 0` / `game_mode 5`. Changing the pair only stages it for the next deliberate map transition. Relay intentionally never runs `map` or automatically reloads a level from this screen: Linux CS2 map transitions have had engine-level crash reports, and a container exposes a game-process crash as a stopped/restarted service.
+
+CS2 does not expose one complete map-list command. Relay merges built-in maps from `maps *` with the filename-per-line Workshop inventory from `ds_workshop_listmaps`. When a Workshop ID is present in a mounted path, Relay uses `host_workshop_map <id>`; collection maps for which CS2 exposes only a filename use `ds_workshop_changelevel <name>`. Plain `changelevel` is never used for a map identified as Workshop content.
 
 ## Run locally
 

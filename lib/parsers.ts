@@ -254,6 +254,59 @@ export function parseMaps(raw: string): ServerMap[] {
   return [...maps.values()].sort((a, b) => a.name.localeCompare(b.name) || (a.workshopId ?? "").localeCompare(b.workshopId ?? ""));
 }
 
+export function parseWorkshopMapList(raw: string): ServerMap[] {
+  const maps = new Map<string, ServerMap>();
+  const ignored = new Set(["workshop", "maps", "map", "none", "empty"]);
+
+  for (const originalLine of raw.replace(/\\/g, "/").replace(/\r/g, "").split("\n")) {
+    let line = originalLine.trim().replace(/^\[[^\]]+\]\s*/, "").replace(/^['"]|['"]$/g, "");
+    if (!line || /^(?:unknown command|usage:|no workshop maps)/i.test(line)) continue;
+
+    const workshopPath = line.match(/(?:maps\/)?workshop\/(\d+)\/(?:[a-z0-9_.-]+\/)*([a-z0-9][a-z0-9_.-]*)(?:\.(?:vpk|bsp))?$/i);
+    if (workshopPath) {
+      const workshopId = workshopPath[1];
+      const name = workshopPath[2].toLowerCase();
+      maps.set(name, { name, category: "Workshop", workshopId });
+      continue;
+    }
+
+    line = line.replace(/\.(?:vpk|bsp)$/i, "");
+    const indexed = line.match(/^(?:\d+[.):|-]\s*)?([a-z0-9][a-z0-9_.-]{0,127})$/i);
+    if (!indexed) continue;
+    const name = indexed[1].toLowerCase();
+    if (!ignored.has(name)) maps.set(name, { name, category: "Workshop" });
+  }
+
+  return [...maps.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function mergeServerMaps(installed: ServerMap[], workshopInventory: ServerMap[]): ServerMap[] {
+  const result = installed.map((map) => ({ ...map }));
+  const workshopByName = new Map(result.filter((map) => map.category === "Workshop").map((map) => [map.name.toLowerCase(), map]));
+  const remainingInventory = workshopInventory.filter((map) => !workshopByName.has(map.name.toLowerCase()));
+  const unresolvedWithIds = result.filter((map) => map.workshopId && (/^\d+$/.test(map.name) || map.name === map.workshopId));
+
+  if (unresolvedWithIds.length && unresolvedWithIds.length === remainingInventory.length) {
+    unresolvedWithIds.forEach((map, index) => {
+      map.name = remainingInventory[index].name;
+      map.displayName = remainingInventory[index].displayName;
+      workshopByName.set(map.name.toLowerCase(), map);
+    });
+  }
+
+  for (const map of workshopInventory) {
+    const known = workshopByName.get(map.name.toLowerCase());
+    if (known) {
+      known.workshopId ??= map.workshopId;
+      continue;
+    }
+    result.push(map);
+    workshopByName.set(map.name.toLowerCase(), map);
+  }
+
+  return result.sort((a, b) => (a.displayName ?? a.name).localeCompare(b.displayName ?? b.name) || (a.workshopId ?? "").localeCompare(b.workshopId ?? ""));
+}
+
 export function parseCvarList(raw: string): SyncedCommand[] {
   const commands = new Map<string, SyncedCommand>();
 
