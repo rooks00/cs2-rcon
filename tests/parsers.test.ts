@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { enrichStatusWithJson, parseBanList, parseCvarList, parseMaps, parseStatus } from "../lib/parsers";
+import { enrichStatusWithJson, parseBanList, parseCvarList, parseIntegerCvar, parseMaps, parseStatus } from "../lib/parsers";
 
 const STATUS = `hostname: RELAY // TEST
 version : 1.41.3.2/14132 10581 secure
@@ -77,5 +77,14 @@ describe("parseCvarList", () => {
     expect(commands).toHaveLength(3);
     expect(commands.find((command) => command.name === "mp_freezetime")).toMatchObject({ value: "15", description: "Freeze time" });
     expect(commands.find((command) => command.name === "sv_cheats")?.value).toBe("0");
+  });
+});
+
+describe("parseIntegerCvar", () => {
+  it("reads quoted, colon, and plain numeric ConVar responses", () => {
+    expect(parseIntegerCvar(`"game_type" = "1" ( def. "0" )`, "game_type")).toBe(1);
+    expect(parseIntegerCvar("game_mode : 5", "game_mode")).toBe(5);
+    expect(parseIntegerCvar("2", "game_mode")).toBe(2);
+    expect(parseIntegerCvar("Unknown command", "game_mode")).toBeNull();
   });
 });

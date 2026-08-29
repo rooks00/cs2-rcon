@@ -1,5 +1,38 @@
 import type { CommandDefinition, ServerMap } from "@/lib/types";
 
+export type GameModeCompatibility = "Built-in" | "Map dependent" | "Legacy definition";
+
+export interface GameModePreset {
+  id: string;
+  name: string;
+  internalName: string;
+  type: number;
+  mode: number;
+  typeName: string;
+  maxPlayers: number;
+  description: string;
+  compatibility: GameModeCompatibility;
+}
+
+// Values are from CS2's current game/csgo/pak01_dir/gamemodes.txt.
+export const GAME_MODE_PRESETS: GameModePreset[] = [
+  { id: "casual", name: "Casual", internalName: "casual", type: 0, mode: 0, typeName: "Classic", maxPlayers: 20, description: "Classic objectives with shorter rounds, free armor, and relaxed team rules.", compatibility: "Built-in" },
+  { id: "competitive", name: "Competitive", internalName: "competitive", type: 0, mode: 1, typeName: "Classic", maxPlayers: 10, description: "The standard 5v5 ruleset with friendly fire and team-only spectating.", compatibility: "Built-in" },
+  { id: "wingman", name: "Wingman", internalName: "scrimcomp2v2", type: 0, mode: 2, typeName: "Classic", maxPlayers: 4, description: "Compact 2v2 competitive rules for Wingman-compatible map areas.", compatibility: "Built-in" },
+  { id: "weapons-expert", name: "Weapons Expert", internalName: "scrimcomp5v5", type: 0, mode: 3, typeName: "Classic", maxPlayers: 10, description: "Competitive rules with per-match weapon purchase restrictions.", compatibility: "Map dependent" },
+  { id: "training-day", name: "Training Day", internalName: "new_user_training", type: 0, mode: 4, typeName: "Classic", maxPlayers: 10, description: "Valve's guided new-player training ruleset and configuration.", compatibility: "Map dependent" },
+  { id: "retakes", name: "Retakes", internalName: "retakes", type: 0, mode: 5, typeName: "Classic", maxPlayers: 7, description: "Fast post-plant retake scenarios using the current first-class Retakes mode.", compatibility: "Built-in" },
+  { id: "arms-race", name: "Arms Race", internalName: "gungameprogressive", type: 1, mode: 0, typeName: "Gun Game", maxPlayers: 16, description: "Progress through the weapon ladder by earning kills.", compatibility: "Built-in" },
+  { id: "demolition", name: "Demolition", internalName: "gungametrbomb", type: 1, mode: 1, typeName: "Gun Game", maxPlayers: 16, description: "Round-based bomb objectives with weapon progression.", compatibility: "Map dependent" },
+  { id: "deathmatch", name: "Deathmatch", internalName: "deathmatch", type: 1, mode: 2, typeName: "Gun Game", maxPlayers: 16, description: "Continuous respawns and score-based free-form combat.", compatibility: "Built-in" },
+  { id: "training", name: "Training", internalName: "training", type: 2, mode: 0, typeName: "Training", maxPlayers: 1, description: "Single-player training configuration for dedicated training maps.", compatibility: "Map dependent" },
+  { id: "custom", name: "Custom", internalName: "custom", type: 3, mode: 0, typeName: "Custom", maxPlayers: 100, description: "A neutral baseline intended for custom maps, configs, and plugins.", compatibility: "Built-in" },
+  { id: "guardian", name: "Guardian", internalName: "cooperative", type: 4, mode: 0, typeName: "Cooperative", maxPlayers: 20, description: "Cooperative defense rules; requires compatible map logic and objectives.", compatibility: "Map dependent" },
+  { id: "coop-strike", name: "Co-op Strike", internalName: "coopmission", type: 4, mode: 1, typeName: "Cooperative", maxPlayers: 10, description: "Mission-oriented cooperative rules for compatible scenario maps.", compatibility: "Map dependent" },
+  { id: "war-games", name: "War Games", internalName: "skirmish", type: 5, mode: 0, typeName: "Skirmish", maxPlayers: 16, description: "A legacy skirmish shell whose actual rules require additional mode flags.", compatibility: "Legacy definition" },
+  { id: "danger-zone", name: "Danger Zone", internalName: "survival", type: 6, mode: 0, typeName: "Free For All", maxPlayers: 16, description: "The legacy survival definition; requires Danger Zone content and maps.", compatibility: "Legacy definition" },
+];
+
 export const DEFAULT_MAPS: ServerMap[] = [
   { name: "de_ancient", category: "Defusal" },
   { name: "de_cache", category: "Defusal" },
@@ -34,6 +67,9 @@ export const COMMAND_LIBRARY: CommandDefinition[] = [
   { name: "map", syntax: "map <map>", description: "Load a map with a clean reset", category: "Maps", dangerous: true },
   { name: "host_workshop_map", syntax: "host_workshop_map <workshop_id>", description: "Download and load a Workshop map", category: "Maps", dangerous: true },
   { name: "ds_workshop_listmaps", syntax: "ds_workshop_listmaps", description: "List maps in the loaded Workshop collection", category: "Maps" },
+  { name: "game_type", syntax: "game_type <0-6>", description: "Set the game type used when the next map initializes", category: "Game mode", dangerous: true },
+  { name: "game_mode", syntax: "game_mode <value>", description: "Set the mode within the selected game type", category: "Game mode", dangerous: true },
+  { name: "game_alias", syntax: "game_alias <alias>", description: "Set game type and mode from a supported alias", category: "Game mode", dangerous: true },
   { name: "mp_restartgame", syntax: "mp_restartgame 1", description: "Restart the match after a delay", category: "Match", dangerous: true },
   { name: "mp_warmup_end", syntax: "mp_warmup_end", description: "End warmup immediately", category: "Match" },
   { name: "mp_pause_match", syntax: "mp_pause_match", description: "Pause the current match", category: "Match" },

@@ -26,6 +26,7 @@ A normal browser cannot open the raw TCP connection required by the [Source RCON
 - `listid` + `listip`, individual unban, and batched “unban all” with `writeid`/`writeip`
 - Dynamic installed-map discovery through `maps *`
 - Safe `changelevel` confirmations, map favorites, and `host_workshop_map`
+- Dedicated game-mode manager with live `game_type`/`game_mode` values, the complete current Valve matrix, safe staging, and confirmed map reloads
 - Raw terminal with history, response timing, copy, and arrow-key recall
 - Dynamic command catalogue synced from the server’s own `cvarlist`
 - Multi-packet RCON responses, arbitrary TCP chunk boundaries, UTF-8 player names, response limits, and timeouts
@@ -34,6 +35,8 @@ A normal browser cannot open the raw TCP connection required by the [Source RCON
 - No analytics, cookies, external images, user accounts, or database
 
 “All commands” means the raw console forwards any valid command your particular server exposes, including plugin commands. Relay does not pretend every command exists on every CS2 build; syncing `cvarlist` makes the reference match the live server.
+
+The Game Modes section uses the values shipped in CS2's current `gamemodes.txt`, including Retakes at `game_type 0` / `game_mode 5`. Changing the pair stages it for the next map initialization; “Apply & reload” sets both values and runs `map <current map>` so the corresponding Valve mode configs execute immediately.
 
 ## Run locally
 
@@ -131,6 +134,8 @@ Relay opens a fresh TCP session for a request, then closes it. This fits Vercel 
 - [Valve Source RCON protocol](https://developer.valvesoftware.com/wiki/Source_RCON_Protocol)
 - [Steam dedicated-server admin commands](https://help.steampowered.com/en/faqs/view/081A-106F-B906-1A7A)
 - [Valve’s CS2 server status example](https://github.com/ValveSoftware/counter-strike_rules_and_regs/blob/main/major-supplemental-rulebook.md)
+- [Current tracked CS2 gamemodes.txt](https://github.com/SteamTracking/GameTracking-CS2/blob/master/game/csgo/pak01_dir/gamemodes.txt)
+- [Current tracked CS2 command dump](https://github.com/SteamTracking/GameTracking-CS2/blob/master/DumpSource2/commands.txt)
 - [Vercel Function limits, including TCP sockets](https://vercel.com/docs/functions/limitations)
 - [Vercel Git deployments](https://vercel.com/docs/deployments/overview)
 - [Next.js Route Handlers](https://nextjs.org/docs/app/getting-started/route-handlers)

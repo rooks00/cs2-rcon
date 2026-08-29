@@ -278,3 +278,18 @@ export function parseCvarList(raw: string): SyncedCommand[] {
 
   return [...commands.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
+
+export function parseIntegerCvar(raw: string, name: string): number | null {
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const namedPatterns = [
+    new RegExp(`"${escapedName}"\\s*=\\s*"?(-?\\d+)`, "i"),
+    new RegExp(`\\b${escapedName}\\b\\s*(?::|=)\\s*"?(-?\\d+)`, "i"),
+  ];
+  for (const pattern of namedPatterns) {
+    const match = raw.match(pattern);
+    if (match) return Number(match[1]);
+  }
+
+  const plain = raw.trim().match(/^"?(-?\d+)"?$/);
+  return plain ? Number(plain[1]) : null;
+}

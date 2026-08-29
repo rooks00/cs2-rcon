@@ -1,0 +1,25 @@
+import { describe, expect, it } from "vitest";
+import { GAME_MODE_PRESETS } from "../lib/commands";
+
+describe("GAME_MODE_PRESETS", () => {
+  it("contains each current gamemodes.txt type/mode pair once", () => {
+    const pairs = GAME_MODE_PRESETS.map((preset) => `${preset.type}/${preset.mode}`);
+    expect(new Set(pairs).size).toBe(GAME_MODE_PRESETS.length);
+    expect([...new Set(GAME_MODE_PRESETS.map((preset) => preset.type))]).toEqual([0, 1, 2, 3, 4, 5, 6]);
+  });
+
+  it("keeps key CS2 mode values aligned with Valve's current definitions", () => {
+    const valueFor = (id: string) => {
+      const preset = GAME_MODE_PRESETS.find((item) => item.id === id);
+      return preset ? [preset.type, preset.mode] : null;
+    };
+    expect(valueFor("casual")).toEqual([0, 0]);
+    expect(valueFor("competitive")).toEqual([0, 1]);
+    expect(valueFor("wingman")).toEqual([0, 2]);
+    expect(valueFor("retakes")).toEqual([0, 5]);
+    expect(valueFor("arms-race")).toEqual([1, 0]);
+    expect(valueFor("deathmatch")).toEqual([1, 2]);
+    expect(valueFor("custom")).toEqual([3, 0]);
+    expect(valueFor("coop-strike")).toEqual([4, 1]);
+  });
+});

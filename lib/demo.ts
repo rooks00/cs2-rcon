@@ -54,6 +54,9 @@ const DEMO_STATUS_JSON = JSON.stringify({
   },
 });
 
+let demoGameType = 0;
+let demoGameMode = 1;
+
 export async function executeDemoCommand(command: string): Promise<{ response: string; durationMs: number }> {
   const started = performance.now();
   await new Promise((resolve) => window.setTimeout(resolve, 180 + Math.random() * 220));
@@ -62,6 +65,16 @@ export async function executeDemoCommand(command: string): Promise<{ response: s
 
   if (normalized === "status") response = DEMO_STATUS;
   else if (normalized === "status_json") response = DEMO_STATUS_JSON;
+  else if (/^game_type(?:\s+-?\d+)?$/.test(normalized)) {
+    const nextValue = normalized.match(/^game_type\s+(-?\d+)$/)?.[1];
+    if (nextValue !== undefined) demoGameType = Number(nextValue);
+    response = `"game_type" = "${demoGameType}"`;
+  }
+  else if (/^game_mode(?:\s+-?\d+)?$/.test(normalized)) {
+    const nextValue = normalized.match(/^game_mode\s+(-?\d+)$/)?.[1];
+    if (nextValue !== undefined) demoGameMode = Number(nextValue);
+    response = `"game_mode" = "${demoGameMode}"`;
+  }
   else if (normalized === "maps *" || normalized === "maps") response = DEMO_MAPS;
   else if (normalized === "listid") response = `ID filter list:\n1 [U:1:77881221] : permanent\n2 STEAM_1:0:8827319 : 45 minutes`;
   else if (normalized === "listip") response = `IP filter list:\n1 198.51.100.88 : permanent`;

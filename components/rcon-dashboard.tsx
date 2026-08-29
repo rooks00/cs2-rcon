@@ -44,6 +44,8 @@ import {
   Sparkles,
   SquareTerminal,
   Star,
+  Swords,
+  Target,
   Trash2,
   TriangleAlert,
   Unplug,
@@ -55,9 +57,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { COMMAND_LIBRARY, DEFAULT_MAPS, quoteRcon } from "@/lib/commands";
+import { COMMAND_LIBRARY, DEFAULT_MAPS, GAME_MODE_PRESETS, quoteRcon, type GameModePreset } from "@/lib/commands";
 import { DEMO_STATUS, executeDemoCommand } from "@/lib/demo";
-import { enrichStatusWithJson, parseBanList, parseCvarList, parseMaps, parseStatus } from "@/lib/parsers";
+import { enrichStatusWithJson, parseBanList, parseCvarList, parseIntegerCvar, parseMaps, parseStatus } from "@/lib/parsers";
 import { DEFAULT_STORED_STATE, exportStoredState, loadStoredState, saveStoredState } from "@/lib/storage";
 import type {
   BanEntry,
@@ -71,7 +73,7 @@ import type {
 } from "@/lib/types";
 import { RelayLogo } from "@/components/relay-logo";
 
-type Section = "overview" | "players" | "bans" | "maps" | "console" | "settings";
+type Section = "overview" | "players" | "bans" | "maps" | "modes" | "console" | "settings";
 type Secrets = { password: string; relayKey: string };
 type Toast = { id: string; message: string; tone: "success" | "error" | "info" };
 type Confirmation = {
@@ -96,6 +98,7 @@ const NAV_ITEMS: Array<{ id: Section; label: string; icon: LucideIcon }> = [
   { id: "players", label: "Players", icon: Users },
   { id: "bans", label: "Ban list", icon: Gavel },
   { id: "maps", label: "Maps", icon: MapIcon },
+  { id: "modes", label: "Game modes", icon: Swords },
   { id: "console", label: "Console", icon: SquareTerminal },
 ];
 
@@ -104,6 +107,7 @@ const SECTION_COPY: Record<Section, { eyebrow: string; title: string; descriptio
   players: { eyebrow: "Roster", title: "Connected players", description: "Inspect, kick, or ban the current roster." },
   bans: { eyebrow: "Moderation", title: "Ban list", description: "Steam and IP filters reported by the server." },
   maps: { eyebrow: "Rotation", title: "Server maps", description: "Browse installed maps and change level safely." },
+  modes: { eyebrow: "Ruleset", title: "Game modes", description: "Manage the exact game_type and game_mode pair." },
   console: { eyebrow: "RCON", title: "Command console", description: "Run any command exposed by your CS2 server." },
   settings: { eyebrow: "Local setup", title: "Settings", description: "Profiles, polling, and browser-only data." },
 };
@@ -183,6 +187,8 @@ export function RconDashboard() {
   const [bans, setBans] = useState<BanEntry[]>([]);
   const [bansLoading, setBansLoading] = useState(false);
   const [mapsLoading, setMapsLoading] = useState(false);
+  const [gameModeLoading, setGameModeLoading] = useState(false);
+  const [currentGameMode, setCurrentGameMode] = useState<{ type: number; mode: number } | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [connectOpen, setConnectOpen] = useState(() => {
     const initial = loadStoredState();
@@ -384,6 +390,41 @@ export function RconDashboard() {
     }
   };
 
+  const refreshGameMode = async (announce = true) => {
+    setGameModeLoading(true);
+    try {
+      const [typeResult, modeResult] = await runCommands(["game_type", "game_mode"]);
+      const type = parseIntegerCvar(typeResult.response, "game_type");
+      const mode = parseIntegerCvar(modeResult.response, "game_mode");
+      if (type === null || mode === null) throw new Error("The server did not return numeric game_type and game_mode values.");
+      setCurrentGameMode({ type, mode });
+      if (announce) notify("Game mode values refreshed.", "success");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Could not read the current game mode.", "error");
+    } finally {
+      setGameModeLoading(false);
+    }
+  };
+
+  const applyGameMode = async (preset: GameModePreset, reloadMap: boolean) => {
+    const commands = [`game_type ${preset.type}`, `game_mode ${preset.mode}`];
+    if (reloadMap && snapshot?.map && snapshot.map !== "Unknown") commands.push(`map ${quoteRcon(snapshot.map)}`);
+    const results = await runCommands(commands);
+    for (const result of results) {
+      addHistory({
+        id: makeId("command"),
+        command: result.command,
+        response: result.response || "Command completed with no output.",
+        status: "success",
+        timestamp: Date.now(),
+        durationMs: result.durationMs,
+      });
+    }
+    setCurrentGameMode({ type: preset.type, mode: preset.mode });
+    if (reloadMap) setSnapshot((current) => current ? { ...current, updatedAt: Date.now() } : current);
+    notify(reloadMap ? `${preset.name} applied; ${snapshot?.map ?? "the current map"} is reloading.` : `${preset.name} staged for the next map load.`, "success");
+  };
+
   const syncCatalog = async () => {
     setCatalogLoading(true);
     try {
@@ -417,6 +458,8 @@ export function RconDashboard() {
     try {
       await confirmation.action();
       setConfirmation(null);
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "The server action failed.", "error");
     } finally {
       setConfirmationBusy(false);
     }
@@ -513,7 +556,11 @@ export function RconDashboard() {
             <button
               key={item.id}
               className={section === item.id ? "is-active" : ""}
-              onClick={() => { setSection(item.id); setMobileNavOpen(false); }}
+              onClick={() => {
+                setSection(item.id);
+                setMobileNavOpen(false);
+                if (item.id === "modes" && connected) void refreshGameMode(false);
+              }}
             >
               <item.icon size={18} />
               <span>{item.label}</span>
@@ -706,6 +753,23 @@ export function RconDashboard() {
                       action: async () => { await runQuick(`host_workshop_map ${id}`, `Workshop map ${id} requested.`); setWorkshopId(""); },
                     });
                   }}
+                />
+              )}
+              {section === "modes" && snapshot && (
+                <GameModesView
+                  presets={GAME_MODE_PRESETS}
+                  current={currentGameMode}
+                  currentMap={snapshot.map}
+                  loading={gameModeLoading}
+                  onRefresh={() => void refreshGameMode()}
+                  onStage={(preset) => void applyGameMode(preset, false).catch((error) => notify(error instanceof Error ? error.message : "Could not stage the game mode.", "error"))}
+                  onApply={(preset) => confirmAction({
+                    title: `Apply ${preset.name} and reload ${snapshot.map}?`,
+                    body: `Relay will set game_type ${preset.type} and game_mode ${preset.mode}, then run map ${snapshot.map}. The current match will end and connected players will reload the map.`,
+                    label: "Apply & reload",
+                    tone: "warning",
+                    action: async () => { await applyGameMode(preset, true); },
+                  })}
                 />
               )}
               {section === "console" && (
@@ -1094,6 +1158,84 @@ function MapsView({ maps, total, currentMap, favorites, loading, search, setSear
         <span className="workshop-panel__icon"><Download size={20} /></span>
         <div><p className="eyebrow">Steam Workshop</p><h3>Load by Workshop ID</h3><p>The server downloads missing content before switching.</p></div>
         <div className="workshop-input"><input inputMode="numeric" value={workshopId} onChange={(event) => setWorkshopId(event.target.value.replace(/\D/g, ""))} placeholder="3121800508" maxLength={15} /><button className="button button--primary" onClick={onWorkshop} disabled={!workshopId}>Load map</button></div>
+      </section>
+    </div>
+  );
+}
+
+interface GameModesViewProps {
+  presets: GameModePreset[];
+  current: { type: number; mode: number } | null;
+  currentMap: string;
+  loading: boolean;
+  onRefresh: () => void;
+  onStage: (preset: GameModePreset) => void;
+  onApply: (preset: GameModePreset) => void;
+}
+
+function GameModesView({ presets, current, currentMap, loading, onRefresh, onStage, onApply }: GameModesViewProps) {
+  const [family, setFamily] = useState("All");
+  const families = ["All", ...Array.from(new Set(presets.map((preset) => preset.typeName)))];
+  const visiblePresets = family === "All" ? presets : presets.filter((preset) => preset.typeName === family);
+  const currentPreset = current ? presets.find((preset) => preset.type === current.type && preset.mode === current.mode) : null;
+
+  return (
+    <div className="stack-lg mode-workspace">
+      <section className="mode-current panel">
+        <span className="mode-current__icon"><Target size={24} /></span>
+        <div className="mode-current__copy">
+          <p className="eyebrow">Server values</p>
+          <h2>{loading ? "Reading game mode…" : currentPreset?.name ?? (current ? "Unknown mode pair" : "Not read yet")}</h2>
+          <p>{currentPreset ? `${currentPreset.typeName} · ${currentPreset.internalName}` : "Read the live ConVars directly from the server."}</p>
+        </div>
+        <div className="mode-current__values">
+          <span><small>game_type</small><strong>{current?.type ?? "—"}</strong></span>
+          <i>/</i>
+          <span><small>game_mode</small><strong>{current?.mode ?? "—"}</strong></span>
+        </div>
+        <button className="button button--secondary" onClick={onRefresh} disabled={loading}><RefreshCw size={15} className={loading ? "spin" : ""} />Refresh values</button>
+      </section>
+
+      <section className="mode-guidance panel">
+        <span><Swords size={18} /></span>
+        <div><strong>Mode configs initialize on map load</strong><p>Staging changes only the two ConVars. Use “Apply & reload” to set the pair and fully reload <code>{currentMap}</code>, which executes the matching Valve mode configuration.</p></div>
+      </section>
+
+      <section className="panel mode-catalog">
+        <div className="mode-toolbar">
+          <div><p className="eyebrow">Valve definitions</p><h2>Game type matrix</h2></div>
+          <div className="mode-filters" aria-label="Filter game modes by type">
+            {families.map((item) => <button key={item} className={family === item ? "is-active" : ""} onClick={() => setFamily(item)}>{item}</button>)}
+          </div>
+        </div>
+        <div className="mode-grid">
+          {visiblePresets.map((preset) => {
+            const isCurrent = current?.type === preset.type && current?.mode === preset.mode;
+            const compatibilityClass = preset.compatibility.toLowerCase().replace(/\s+/g, "-");
+            return (
+              <article className={`mode-card ${isCurrent ? "is-current" : ""}`} key={preset.id}>
+                <div className="mode-card__top">
+                  <span className="mode-card__number">{preset.type}.{preset.mode}</span>
+                  <span className={`mode-compat mode-compat--${compatibilityClass}`}>{preset.compatibility}</span>
+                </div>
+                <p className="mode-card__family">{preset.typeName}</p>
+                <h3>{preset.name}</h3>
+                <code>{preset.internalName}</code>
+                <p className="mode-card__description">{preset.description}</p>
+                <div className="mode-card__meta">
+                  <span><Users size={13} />Up to {preset.maxPlayers}</span>
+                  <span><small>TYPE</small>{preset.type}</span>
+                  <span><small>MODE</small>{preset.mode}</span>
+                </div>
+                <div className="mode-card__actions">
+                  <button className="button button--ghost" onClick={() => onStage(preset)} disabled={loading || isCurrent}>{isCurrent ? <><Check size={14} />Current values</> : "Stage only"}</button>
+                  <button className="button button--tiny" onClick={() => onApply(preset)} disabled={loading}>Apply & reload <ChevronRight size={13} /></button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+        <div className="mode-footnote"><CircleDot size={14} /><p><strong>Compatibility matters.</strong> Map-dependent modes need compatible map logic. Legacy definitions remain in the shipped CS2 file but may require removed content or extra flags.</p></div>
       </section>
     </div>
   );
