@@ -1795,6 +1795,16 @@ kbd {
   white-space: nowrap;
 }
 
+.map-card__internal {
+  display: block;
+  margin: -7px 0 10px;
+  overflow: hidden;
+  color: #606972;
+  font-size: 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .workshop-panel {
   display: grid;
   grid-template-columns: 42px minmax(200px, 1fr) minmax(310px, 0.65fr);

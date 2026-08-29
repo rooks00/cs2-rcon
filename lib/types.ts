@@ -52,6 +52,7 @@ export type MapCategory = "Defusal" | "Hostage" | "Wingman" | "Workshop" | "Cust
 
 export interface ServerMap {
   name: string;
+  displayName?: string;
   category: MapCategory;
   workshopId?: string;
 }

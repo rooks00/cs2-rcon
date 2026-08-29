@@ -24,7 +24,7 @@ A normal browser cannot open the raw TCP connection required by the [Source RCON
 - Live `status` + `status_json` polling with both legacy and current CS2 player formats
 - Kick and permanent Steam-ID ban actions
 - `listid` + `listip`, individual unban, and batched “unban all” with `writeid`/`writeip`
-- Dynamic installed-map discovery through `maps *`, including Workshop IDs parsed from `maps/workshop/<id>/<name>.vpk`
+- Dynamic installed-map discovery through `maps *`, including Workshop IDs parsed from `maps/workshop/<id>/<name>.vpk` and human titles resolved from Steam
 - Safe stock-map `changelevel` confirmations, map favorites, and automatic `host_workshop_map <id>` routing for Workshop cards
 - Dedicated game-mode manager with live `game_type`/`game_mode` values, the complete current Valve matrix, and non-disruptive staging
 - Raw terminal with history, response timing, copy, and arrow-key recall
@@ -129,6 +129,8 @@ If “Remember secrets” is enabled, the password and relay key are plain brows
 
 Relay opens a fresh TCP session for a request, then closes it. This fits Vercel Functions and means there is no durable backend state, but it does not provide a continuous server-log/chat stream. Status is polled only while the tab is visible. Long-running daemon work and persistent WebSocket/TCP sessions need a continuously running backend instead of a serverless function.
 
+CS2 defines a `player_chat` event with a `teamonly` flag, and server logs distinguish `say` from `say_team`. Vanilla Source RCON does not expose a command that retrieves those incoming log events. Live all/team chat would require `logaddress_add_http` feeding a persistent log receiver and pub-sub/store, or a server plugin that buffers chat for polling. Relay deliberately omits this because it would violate the stateless/local-storage design.
+
 ## Research references
 
 - [Valve Source RCON protocol](https://developer.valvesoftware.com/wiki/Source_RCON_Protocol)
@@ -136,6 +138,7 @@ Relay opens a fresh TCP session for a request, then closes it. This fits Vercel 
 - [Valve’s CS2 server status example](https://github.com/ValveSoftware/counter-strike_rules_and_regs/blob/main/major-supplemental-rulebook.md)
 - [Current tracked CS2 gamemodes.txt](https://github.com/SteamTracking/GameTracking-CS2/blob/master/game/csgo/pak01_dir/gamemodes.txt)
 - [Current tracked CS2 command dump](https://github.com/SteamTracking/GameTracking-CS2/blob/master/DumpSource2/commands.txt)
+- [Current tracked CS2 player_chat event](https://github.com/SteamTracking/GameTracking-CS2/blob/master/game/csgo/pak01_dir/resource/game.gameevents)
 - [Valve Linux dedicated-server map-transition crash report](https://github.com/ValveSoftware/csgo-osx-linux/issues/3577)
 - [Vercel Function limits, including TCP sockets](https://vercel.com/docs/functions/limitations)
 - [Vercel Git deployments](https://vercel.com/docs/deployments/overview)

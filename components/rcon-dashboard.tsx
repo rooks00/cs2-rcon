@@ -168,6 +168,29 @@ async function requestRcon(profile: ServerProfile, secrets: Secrets, commands: s
   return payload.results;
 }
 
+async function requestWorkshopTitles(ids: string[]): Promise<Record<string, string>> {
+  if (!ids.length) return {};
+  try {
+    const response = await fetch("/api/workshop", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({ ids }),
+    });
+    if (!response.ok) return {};
+    const payload: unknown = await response.json();
+    const items = (payload as { items?: unknown })?.items;
+    if (!Array.isArray(items)) return {};
+    return Object.fromEntries(items.flatMap((item) => {
+      if (!item || typeof item !== "object") return [];
+      const detail = item as { id?: unknown; title?: unknown };
+      return typeof detail.id === "string" && typeof detail.title === "string" ? [[detail.id, detail.title]] : [];
+    }));
+  } catch {
+    return {};
+  }
+}
+
 export function RconDashboard() {
   const [hydrated, setHydrated] = useState(false);
   const [stored, setStored] = useState<StoredState>(() => loadStoredState());
@@ -381,7 +404,10 @@ export function RconDashboard() {
     try {
       const [result] = await runCommands(["maps *"]);
       const parsed = parseMaps(result.response);
-      if (parsed.length) setServerMaps(parsed);
+      const workshopIds = [...new Set(parsed.flatMap((map) => map.workshopId ? [map.workshopId] : []))];
+      const titles = await requestWorkshopTitles(workshopIds);
+      const enriched = parsed.map((map) => map.workshopId && titles[map.workshopId] ? { ...map, displayName: titles[map.workshopId] } : map);
+      if (enriched.length) setServerMaps(enriched);
       notify(parsed.length ? `Found ${parsed.length} installed maps.` : "No map names were found in the server response.", parsed.length ? "success" : "info");
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not load maps.", "error");
@@ -475,7 +501,7 @@ export function RconDashboard() {
 
   const filteredMaps = useMemo(() => {
     const query = mapSearch.trim().toLowerCase();
-    return serverMaps.filter((map) => !query || `${map.name} ${map.category}`.toLowerCase().includes(query));
+    return serverMaps.filter((map) => !query || `${map.displayName ?? ""} ${map.name} ${map.workshopId ?? ""} ${map.category}`.toLowerCase().includes(query));
   }, [mapSearch, serverMaps]);
 
   const filteredCommands = useMemo(() => {
@@ -731,7 +757,7 @@ export function RconDashboard() {
                       : [...current.favoriteMaps, name],
                   }))}
                   onChange={(map) => confirmAction({
-                    title: `${map.workshopId ? "Host Workshop map" : "Change level"} to ${map.name}?`,
+                    title: `${map.workshopId ? "Host Workshop map" : "Change level"} to ${map.displayName ?? map.name}?`,
                     body: map.workshopId
                       ? `Relay identified Workshop item ${map.workshopId} from the server's installed-map path and will run host_workshop_map ${map.workshopId}. The current match will end while Steam mounts the map.`
                       : "The current match will end and every connected player will load the selected map using changelevel.",
@@ -739,7 +765,7 @@ export function RconDashboard() {
                     tone: "warning",
                     action: async () => {
                       const command = getMapChangeCommand(map);
-                      await runQuick(command, map.workshopId ? `Workshop map ${map.name} requested.` : `Changing level to ${map.name}.`);
+                      await runQuick(command, map.workshopId ? `Workshop map ${map.displayName ?? map.name} requested.` : `Changing level to ${map.name}.`);
                       setSnapshot((current) => current ? { ...current, map: map.name, updatedAt: Date.now() } : current);
                     },
                   })}
@@ -1114,7 +1140,7 @@ interface MapsViewProps {
 }
 
 function MapsView({ maps, total, currentMap, favorites, loading, search, setSearch, workshopId, setWorkshopId, onRefresh, onFavorite, onChange, onWorkshop }: MapsViewProps) {
-  const sorted = [...maps].sort((a, b) => Number(favorites.includes(b.name)) - Number(favorites.includes(a.name)) || a.name.localeCompare(b.name));
+  const sorted = [...maps].sort((a, b) => Number(favorites.includes(b.name)) - Number(favorites.includes(a.name)) || (a.displayName ?? a.name).localeCompare(b.displayName ?? b.name));
   return (
     <div className="stack-lg">
       <section className="map-current panel">
@@ -1133,13 +1159,15 @@ function MapsView({ maps, total, currentMap, favorites, loading, search, setSear
           {sorted.map((map, index) => {
             const isCurrent = map.name === currentMap;
             const isFavorite = favorites.includes(map.name);
+            const displayName = map.displayName ?? map.name;
             return (
               <article className={`map-card map-card--${(index % 5) + 1} ${isCurrent ? "is-current" : ""}`} key={`${map.workshopId ?? "stock"}-${map.name}`}>
-                <div className="map-card__visual"><span>{map.name.slice(0, 2).toUpperCase()}</span><i /><b /></div>
+                <div className="map-card__visual"><span>{displayName.slice(0, 2).toUpperCase()}</span><i /><b /></div>
                 <div className="map-card__body">
                   <span className="map-card__category">{map.category}{map.workshopId ? ` · #${map.workshopId}` : ""}</span>
                   <button className={`favorite-button ${isFavorite ? "is-favorite" : ""}`} onClick={() => onFavorite(map.name)} aria-label={`${isFavorite ? "Remove" : "Add"} ${map.name} ${isFavorite ? "from" : "to"} favorites`}><Star size={15} fill={isFavorite ? "currentColor" : "none"} /></button>
-                  <h3>{map.name}</h3>
+                  <h3 title={displayName}>{displayName}</h3>
+                  {map.workshopId && displayName !== map.name && <code className="map-card__internal">{map.name}</code>}
                   <button className={`button ${isCurrent ? "button--current" : "button--tiny"}`} onClick={() => !isCurrent && onChange(map)} disabled={isCurrent}>{isCurrent ? <><Radio size={13} />Current</> : <>{map.workshopId ? "Host Workshop map" : "Change level"} <ChevronRight size={13} /></>}</button>
                 </div>
               </article>
