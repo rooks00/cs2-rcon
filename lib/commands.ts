@@ -88,6 +88,11 @@ export function quoteRcon(value: string): string {
   return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/[\r\n]/g, " ")}"`;
 }
 
+export function getMapChangeCommand(map: ServerMap): string {
+  if (map.workshopId && /^\d+$/.test(map.workshopId)) return `host_workshop_map ${map.workshopId}`;
+  return `changelevel ${map.name}`;
+}
+
 export function categorizeMap(name: string): ServerMap["category"] {
   if (name.includes("workshop/") || /^workshop_/.test(name)) return "Workshop";
   if (name.startsWith("de_")) return "Defusal";

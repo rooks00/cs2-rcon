@@ -169,15 +169,23 @@ class RconSession {
   async execute(command: string): Promise<ExecutedCommand> {
     const startedAt = Date.now();
     const commandId = this.nextId();
+    const isLevelTransition = /^(?:changelevel|host_workshop_map|ds_workshop_changelevel)\b/i.test(command.trim());
     const chunks: Buffer[] = [];
     let responseBytes = 0;
     let truncated = false;
     let receivedResponse = false;
 
-    await this.write(encodeRconPacket(SERVERDATA_EXECCOMMAND, commandId, command));
-    // Valve Source servers answer this probe after every response fragment. It is
-    // the only reliable delimiter when a command returns exactly 4096-byte parts.
-    await this.write(encodeRconPacket(SERVERDATA_RESPONSE_VALUE, commandId, ""));
+    try {
+      await this.write(encodeRconPacket(SERVERDATA_EXECCOMMAND, commandId, command));
+      // Valve Source servers answer this probe after every response fragment. It is
+      // the only reliable delimiter when a command returns exactly 4096-byte parts.
+      await this.write(encodeRconPacket(SERVERDATA_RESPONSE_VALUE, commandId, ""));
+    } catch (error) {
+      if (isLevelTransition && error instanceof RconError && error.code === "CONNECTION_CLOSED") {
+        return transitionDispatched(command, startedAt);
+      }
+      throw error;
+    }
 
     const deadline = Date.now() + this.target.timeoutMs;
     while (Date.now() < deadline) {
@@ -189,6 +197,9 @@ class RconSession {
       } catch (error) {
         if (receivedResponse && error instanceof RconError && error.code === "RESPONSE_TIMEOUT") break;
         if (receivedResponse && error instanceof RconError && error.code === "CONNECTION_CLOSED") break;
+        if (isLevelTransition && error instanceof RconError && (error.code === "RESPONSE_TIMEOUT" || error.code === "CONNECTION_CLOSED")) {
+          return transitionDispatched(command, startedAt);
+        }
         throw error;
       }
 
@@ -212,6 +223,7 @@ class RconSession {
     }
 
     if (!receivedResponse) {
+      if (isLevelTransition) return transitionDispatched(command, startedAt);
       throw new RconError("RESPONSE_TIMEOUT", "The server accepted the connection but did not answer the command.");
     }
 
@@ -286,6 +298,14 @@ class RconSession {
     clearTimeout(waiter.timer);
     waiter.reject(error);
   }
+}
+
+function transitionDispatched(command: string, startedAt: number): ExecutedCommand {
+  return {
+    command,
+    response: "Level-transition command dispatched. The server closed or paused RCON before returning a response.",
+    durationMs: Date.now() - startedAt,
+  };
 }
 
 function isTerminator(body: Buffer): boolean {

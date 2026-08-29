@@ -25,7 +25,7 @@ PENDING: (fs)maps/de_train.vpk
 PENDING: (fs)maps/de_vertigo.vpk
 PENDING: (fs)maps/cs_italy.vpk
 PENDING: (fs)maps/cs_office.vpk
-PENDING: (fs)maps/aim_botz.vpk`;
+PENDING: (fs)maps/workshop/3070244462/aim_botz.vpk`;
 
 const DEMO_CVARS = `status : cmd : release : Print connection and server status
 maps : cmd : release : Displays list of maps

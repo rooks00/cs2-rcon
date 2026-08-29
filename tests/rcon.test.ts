@@ -80,4 +80,27 @@ describe("executeRconCommands", () => {
     await expect(executeRconCommands({ host: "127.0.0.1", port: address.port, password: "wrong", timeoutMs: 1000 }, ["status"]))
       .rejects.toMatchObject({ code: "AUTH_FAILED" } satisfies Partial<RconError>);
   });
+
+  it("treats an expected RCON disconnect during a level transition as dispatched", async () => {
+    const server = createServer((socket) => {
+      sockets.add(socket);
+      const decoder = new RconPacketDecoder();
+      socket.on("data", (chunk) => {
+        for (const packet of decoder.feed(chunk)) {
+          if (packet.type === 3) socket.write(Buffer.concat([encodeRconPacket(0, packet.id, ""), encodeRconPacket(2, packet.id, "")]));
+          else if (packet.type === 2 && packet.body.toString().startsWith("host_workshop_map")) socket.destroy();
+        }
+      });
+    });
+    servers.push(server);
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Missing test address");
+
+    const [result] = await executeRconCommands(
+      { host: "127.0.0.1", port: address.port, password: "test", timeoutMs: 1000 },
+      ["host_workshop_map 3070244462"],
+    );
+    expect(result.response).toContain("dispatched");
+  });
 });

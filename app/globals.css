@@ -1755,11 +1755,16 @@ kbd {
 }
 
 .map-card__category {
+  display: block;
+  max-width: calc(100% - 28px);
+  overflow: hidden;
   color: #68717a;
   font-size: 7px;
   font-weight: 750;
   letter-spacing: 0.1em;
+  text-overflow: ellipsis;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .favorite-button {
@@ -2158,7 +2163,7 @@ kbd {
 
 .mode-card__actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 7px;
   margin-top: 12px;
 }

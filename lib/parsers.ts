@@ -228,20 +228,30 @@ export function parseBanList(raw: string, kind: BanEntry["kind"]): BanEntry[] {
 }
 
 export function parseMaps(raw: string): ServerMap[] {
-  const names = new Set<string>();
+  const maps = new Map<string, ServerMap>();
   const normalized = raw.replace(/\\/g, "/").replace(/\r/g, "");
 
   for (const line of normalized.split("\n")) {
-    for (const match of line.matchAll(/(?:^|[^a-z0-9_])maps\/(?:workshop\/\d+\/)?([a-z0-9][a-z0-9_.-]*)\.vpk\b/gi)) {
-      names.add(match[1].toLowerCase());
+    const isWorkshopLine = /(?:^|[^a-z0-9_])workshop\/\d+\//i.test(line);
+    for (const match of line.matchAll(/(?:^|[^a-z0-9_])(?:maps\/)?workshop\/(\d+)\/(?:[a-z0-9_.-]+\/)*([a-z0-9][a-z0-9_.-]*)\.vpk\b/gi)) {
+      const workshopId = match[1];
+      const name = match[2].toLowerCase();
+      maps.set(`workshop:${workshopId}:${name}`, { name, category: "Workshop", workshopId });
+    }
+    if (!isWorkshopLine) {
+      for (const match of line.matchAll(/(?:^|[^a-z0-9_])maps\/([a-z0-9][a-z0-9_.-]*)\.vpk\b/gi)) {
+        const name = match[1].toLowerCase();
+        maps.set(`stock:${name}`, { name, category: categorizeMap(name) });
+      }
     }
     const bare = line.trim().match(/^(?:\d+[.):]?\s*)?((?:de|cs|ar|gd|aim|awp|surf|kz|ze|fy)_[a-z0-9_.-]+)(?:\.vpk)?(?:\s|$)/i);
-    if (bare) names.add(bare[1].toLowerCase().replace(/\.vpk$/, ""));
+    if (bare) {
+      const name = bare[1].toLowerCase().replace(/\.vpk$/, "");
+      maps.set(`stock:${name}`, { name, category: categorizeMap(name) });
+    }
   }
 
-  return [...names]
-    .sort((a, b) => a.localeCompare(b))
-    .map((name) => ({ name, category: categorizeMap(name) }));
+  return [...maps.values()].sort((a, b) => a.name.localeCompare(b.name) || (a.workshopId ?? "").localeCompare(b.workshopId ?? ""));
 }
 
 export function parseCvarList(raw: string): SyncedCommand[] {

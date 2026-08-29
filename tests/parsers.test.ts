@@ -67,7 +67,16 @@ describe("parseMaps", () => {
   it("extracts VPK paths and bare map rows", () => {
     const maps = parseMaps(`PENDING: (fs)maps/de_mirage.vpk\n/maps/workshop/123/aim_redline.vpk\n3. cs_office\nnoise`);
     expect(maps.map((map) => map.name)).toEqual(["aim_redline", "cs_office", "de_mirage"]);
+    expect(maps.find((map) => map.name === "aim_redline")).toMatchObject({ category: "Workshop", workshopId: "123" });
     expect(maps.find((map) => map.name === "cs_office")?.category).toBe("Hostage");
+  });
+
+  it("recognizes nested and Windows-style Workshop paths without losing the published file ID", () => {
+    const maps = parseMaps(`PENDING: (fs)maps\\workshop\\3070244462\\aim_botz.vpk\n(fs) workshop/3251335864/maps/surf_utopia.vpk`);
+    expect(maps).toEqual([
+      { name: "aim_botz", category: "Workshop", workshopId: "3070244462" },
+      { name: "surf_utopia", category: "Workshop", workshopId: "3251335864" },
+    ]);
   });
 });
 

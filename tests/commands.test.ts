@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GAME_MODE_PRESETS } from "../lib/commands";
+import { GAME_MODE_PRESETS, getMapChangeCommand } from "../lib/commands";
 
 describe("GAME_MODE_PRESETS", () => {
   it("contains each current gamemodes.txt type/mode pair once", () => {
@@ -21,5 +21,15 @@ describe("GAME_MODE_PRESETS", () => {
     expect(valueFor("deathmatch")).toEqual([1, 2]);
     expect(valueFor("custom")).toEqual([3, 0]);
     expect(valueFor("coop-strike")).toEqual([4, 1]);
+  });
+});
+
+describe("getMapChangeCommand", () => {
+  it("uses the Workshop ID when one was discovered during map sync", () => {
+    expect(getMapChangeCommand({ name: "aim_botz", category: "Workshop", workshopId: "3070244462" })).toBe("host_workshop_map 3070244462");
+  });
+
+  it("uses changelevel only for ordinary installed maps", () => {
+    expect(getMapChangeCommand({ name: "de_mirage", category: "Defusal" })).toBe("changelevel de_mirage");
   });
 });

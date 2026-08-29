@@ -57,7 +57,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { COMMAND_LIBRARY, DEFAULT_MAPS, GAME_MODE_PRESETS, quoteRcon, type GameModePreset } from "@/lib/commands";
+import { COMMAND_LIBRARY, DEFAULT_MAPS, GAME_MODE_PRESETS, getMapChangeCommand, quoteRcon, type GameModePreset } from "@/lib/commands";
 import { DEMO_STATUS, executeDemoCommand } from "@/lib/demo";
 import { enrichStatusWithJson, parseBanList, parseCvarList, parseIntegerCvar, parseMaps, parseStatus } from "@/lib/parsers";
 import { DEFAULT_STORED_STATE, exportStoredState, loadStoredState, saveStoredState } from "@/lib/storage";
@@ -406,9 +406,8 @@ export function RconDashboard() {
     }
   };
 
-  const applyGameMode = async (preset: GameModePreset, reloadMap: boolean) => {
+  const stageGameMode = async (preset: GameModePreset) => {
     const commands = [`game_type ${preset.type}`, `game_mode ${preset.mode}`];
-    if (reloadMap && snapshot?.map && snapshot.map !== "Unknown") commands.push(`map ${quoteRcon(snapshot.map)}`);
     const results = await runCommands(commands);
     for (const result of results) {
       addHistory({
@@ -421,8 +420,7 @@ export function RconDashboard() {
       });
     }
     setCurrentGameMode({ type: preset.type, mode: preset.mode });
-    if (reloadMap) setSnapshot((current) => current ? { ...current, updatedAt: Date.now() } : current);
-    notify(reloadMap ? `${preset.name} applied; ${snapshot?.map ?? "the current map"} is reloading.` : `${preset.name} staged for the next map load.`, "success");
+    notify(`${preset.name} staged safely. It will initialize on the next deliberate map change.`, "success");
   };
 
   const syncCatalog = async () => {
@@ -733,12 +731,15 @@ export function RconDashboard() {
                       : [...current.favoriteMaps, name],
                   }))}
                   onChange={(map) => confirmAction({
-                    title: `Change level to ${map.name}?`,
-                    body: "The current match will end and every connected player will load the selected map.",
-                    label: "Change level",
+                    title: `${map.workshopId ? "Host Workshop map" : "Change level"} to ${map.name}?`,
+                    body: map.workshopId
+                      ? `Relay identified Workshop item ${map.workshopId} from the server's installed-map path and will run host_workshop_map ${map.workshopId}. The current match will end while Steam mounts the map.`
+                      : "The current match will end and every connected player will load the selected map using changelevel.",
+                    label: map.workshopId ? "Host Workshop map" : "Change level",
                     tone: "warning",
                     action: async () => {
-                      await runQuick(`changelevel ${map.name}`, `Changing level to ${map.name}.`);
+                      const command = getMapChangeCommand(map);
+                      await runQuick(command, map.workshopId ? `Workshop map ${map.name} requested.` : `Changing level to ${map.name}.`);
                       setSnapshot((current) => current ? { ...current, map: map.name, updatedAt: Date.now() } : current);
                     },
                   })}
@@ -762,14 +763,7 @@ export function RconDashboard() {
                   currentMap={snapshot.map}
                   loading={gameModeLoading}
                   onRefresh={() => void refreshGameMode()}
-                  onStage={(preset) => void applyGameMode(preset, false).catch((error) => notify(error instanceof Error ? error.message : "Could not stage the game mode.", "error"))}
-                  onApply={(preset) => confirmAction({
-                    title: `Apply ${preset.name} and reload ${snapshot.map}?`,
-                    body: `Relay will set game_type ${preset.type} and game_mode ${preset.mode}, then run map ${snapshot.map}. The current match will end and connected players will reload the map.`,
-                    label: "Apply & reload",
-                    tone: "warning",
-                    action: async () => { await applyGameMode(preset, true); },
-                  })}
+                  onStage={(preset) => void stageGameMode(preset).catch((error) => notify(error instanceof Error ? error.message : "Could not stage the game mode.", "error"))}
                 />
               )}
               {section === "console" && (
@@ -1140,13 +1134,13 @@ function MapsView({ maps, total, currentMap, favorites, loading, search, setSear
             const isCurrent = map.name === currentMap;
             const isFavorite = favorites.includes(map.name);
             return (
-              <article className={`map-card map-card--${(index % 5) + 1} ${isCurrent ? "is-current" : ""}`} key={map.name}>
+              <article className={`map-card map-card--${(index % 5) + 1} ${isCurrent ? "is-current" : ""}`} key={`${map.workshopId ?? "stock"}-${map.name}`}>
                 <div className="map-card__visual"><span>{map.name.slice(0, 2).toUpperCase()}</span><i /><b /></div>
                 <div className="map-card__body">
-                  <span className="map-card__category">{map.category}</span>
+                  <span className="map-card__category">{map.category}{map.workshopId ? ` · #${map.workshopId}` : ""}</span>
                   <button className={`favorite-button ${isFavorite ? "is-favorite" : ""}`} onClick={() => onFavorite(map.name)} aria-label={`${isFavorite ? "Remove" : "Add"} ${map.name} ${isFavorite ? "from" : "to"} favorites`}><Star size={15} fill={isFavorite ? "currentColor" : "none"} /></button>
                   <h3>{map.name}</h3>
-                  <button className={`button ${isCurrent ? "button--current" : "button--tiny"}`} onClick={() => !isCurrent && onChange(map)} disabled={isCurrent}>{isCurrent ? <><Radio size={13} />Current</> : <>Change level <ChevronRight size={13} /></>}</button>
+                  <button className={`button ${isCurrent ? "button--current" : "button--tiny"}`} onClick={() => !isCurrent && onChange(map)} disabled={isCurrent}>{isCurrent ? <><Radio size={13} />Current</> : <>{map.workshopId ? "Host Workshop map" : "Change level"} <ChevronRight size={13} /></>}</button>
                 </div>
               </article>
             );
@@ -1170,10 +1164,9 @@ interface GameModesViewProps {
   loading: boolean;
   onRefresh: () => void;
   onStage: (preset: GameModePreset) => void;
-  onApply: (preset: GameModePreset) => void;
 }
 
-function GameModesView({ presets, current, currentMap, loading, onRefresh, onStage, onApply }: GameModesViewProps) {
+function GameModesView({ presets, current, currentMap, loading, onRefresh, onStage }: GameModesViewProps) {
   const [family, setFamily] = useState("All");
   const families = ["All", ...Array.from(new Set(presets.map((preset) => preset.typeName)))];
   const visiblePresets = family === "All" ? presets : presets.filter((preset) => preset.typeName === family);
@@ -1198,7 +1191,7 @@ function GameModesView({ presets, current, currentMap, loading, onRefresh, onSta
 
       <section className="mode-guidance panel">
         <span><Swords size={18} /></span>
-        <div><strong>Mode configs initialize on map load</strong><p>Staging changes only the two ConVars. Use “Apply & reload” to set the pair and fully reload <code>{currentMap}</code>, which executes the matching Valve mode configuration.</p></div>
+        <div><strong>Safe mode changes never force a reload</strong><p>Relay only stages the two ConVars here. The matching Valve configs initialize when you deliberately leave <code>{currentMap}</code> from the Maps section, avoiding an automatic <code>map</code> command that can terminate Linux/Docker servers.</p></div>
       </section>
 
       <section className="panel mode-catalog">
@@ -1228,8 +1221,7 @@ function GameModesView({ presets, current, currentMap, loading, onRefresh, onSta
                   <span><small>MODE</small>{preset.mode}</span>
                 </div>
                 <div className="mode-card__actions">
-                  <button className="button button--ghost" onClick={() => onStage(preset)} disabled={loading || isCurrent}>{isCurrent ? <><Check size={14} />Current values</> : "Stage only"}</button>
-                  <button className="button button--tiny" onClick={() => onApply(preset)} disabled={loading}>Apply & reload <ChevronRight size={13} /></button>
+                  <button className="button button--ghost" onClick={() => onStage(preset)} disabled={loading || isCurrent}>{isCurrent ? <><Check size={14} />Current values</> : <>Stage for next map <ChevronRight size={13} /></>}</button>
                 </div>
               </article>
             );
