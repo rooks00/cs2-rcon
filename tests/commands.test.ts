@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GAME_MODE_PRESETS, getMapChangeCommand } from "../lib/commands";
+import { GAME_MODE_PRESETS, getCommandCompletions, getMapChangeCommand } from "../lib/commands";
 
 describe("GAME_MODE_PRESETS", () => {
   it("contains each current gamemodes.txt type/mode pair once", () => {
@@ -35,5 +35,18 @@ describe("getMapChangeCommand", () => {
 
   it("uses the dedicated collection command when CS2 exposes a Workshop name but no ID", () => {
     expect(getMapChangeCommand({ name: "surf_utopia", category: "Workshop" })).toBe("ds_workshop_changelevel surf_utopia");
+  });
+});
+
+describe("getCommandCompletions", () => {
+  const commands = [{ name: "status" }, { name: "stats" }, { name: "say" }, { name: "sv_cheats" }];
+
+  it("matches the first command token case-insensitively", () => {
+    expect(getCommandCompletions(commands, "ST").map((command) => command.name)).toEqual(["stats", "status"]);
+  });
+
+  it("does not offer command-name completion after arguments begin", () => {
+    expect(getCommandCompletions(commands, "status ")).toEqual([]);
+    expect(getCommandCompletions(commands, "")).toEqual([]);
   });
 });

@@ -57,7 +57,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { COMMAND_LIBRARY, DEFAULT_MAPS, GAME_MODE_PRESETS, getMapChangeCommand, quoteRcon, type GameModePreset } from "@/lib/commands";
+import { COMMAND_LIBRARY, DEFAULT_MAPS, GAME_MODE_PRESETS, getCommandCompletions, getMapChangeCommand, quoteRcon, type GameModePreset } from "@/lib/commands";
 import { DEMO_STATUS, executeDemoCommand } from "@/lib/demo";
 import { enrichStatusWithJson, mergeServerMaps, parseBanList, parseCvarList, parseIntegerCvar, parseMaps, parseStatus, parseWorkshopMapList } from "@/lib/parsers";
 import { DEFAULT_STORED_STATE, exportStoredState, loadStoredState, saveStoredState } from "@/lib/storage";
@@ -76,6 +76,7 @@ import { RelayLogo } from "@/components/relay-logo";
 type Section = "overview" | "players" | "bans" | "maps" | "modes" | "console" | "settings";
 type Secrets = { password: string; relayKey: string };
 type Toast = { id: string; message: string; tone: "success" | "error" | "info" };
+type ConsoleCommandOption = { name: string; syntax: string; description: string; meta: string };
 type Confirmation = {
   title: string;
   body: string;
@@ -504,8 +505,7 @@ export function RconDashboard() {
     return serverMaps.filter((map) => !query || `${map.displayName ?? ""} ${map.name} ${map.workshopId ?? ""} ${map.category}`.toLowerCase().includes(query));
   }, [mapSearch, serverMaps]);
 
-  const filteredCommands = useMemo(() => {
-    const query = consoleSearch.trim().toLowerCase();
+  const commandCatalogue = useMemo<ConsoleCommandOption[]>(() => {
     const builtIns = COMMAND_LIBRARY.map((command) => ({
       name: command.name,
       syntax: command.syntax,
@@ -519,8 +519,15 @@ export function RconDashboard() {
       meta: command.value || command.flags || "Server",
     }));
     const merged = new Map([...builtIns, ...synced].map((item) => [item.name.toLowerCase(), item]));
-    return [...merged.values()].filter((item) => !query || `${item.name} ${item.syntax} ${item.description} ${item.meta}`.toLowerCase().includes(query)).slice(0, 200);
-  }, [consoleSearch, stored.syncedCommands]);
+    return [...merged.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [stored.syncedCommands]);
+
+  const filteredCommands = useMemo(() => {
+    const query = consoleSearch.trim().toLowerCase();
+    return commandCatalogue.filter((item) => !query || `${item.name} ${item.syntax} ${item.description} ${item.meta}`.toLowerCase().includes(query)).slice(0, 200);
+  }, [commandCatalogue, consoleSearch]);
+
+  const commandCompletions = useMemo(() => getCommandCompletions(commandCatalogue, consoleInput), [commandCatalogue, consoleInput]);
 
   const handleConsoleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     const commands = stored.consoleHistory.filter((entry) => entry.status !== "pending").map((entry) => entry.command);
@@ -803,6 +810,7 @@ export function RconDashboard() {
                   search={consoleSearch}
                   setSearch={setConsoleSearch}
                   commands={filteredCommands}
+                  completions={commandCompletions}
                   syncedCount={stored.syncedCommands.length}
                   syncing={catalogLoading}
                   onSync={() => void syncCatalog()}
@@ -1270,7 +1278,8 @@ interface ConsoleViewProps {
   busy: boolean;
   search: string;
   setSearch: (value: string) => void;
-  commands: Array<{ name: string; syntax: string; description: string; meta: string }>;
+  commands: ConsoleCommandOption[];
+  completions: ConsoleCommandOption[];
   syncedCount: number;
   syncing: boolean;
   onSync: () => void;
@@ -1282,7 +1291,48 @@ interface ConsoleViewProps {
   endRef: React.RefObject<HTMLDivElement | null>;
 }
 
-function ConsoleView({ entries, input, setInput, busy, search, setSearch, commands, syncedCount, syncing, onSync, onSubmit, onKeyDown, onUseCommand, onClear, onCopy, endRef }: ConsoleViewProps) {
+function ConsoleView({ entries, input, setInput, busy, search, setSearch, commands, completions, syncedCount, syncing, onSync, onSubmit, onKeyDown, onUseCommand, onClear, onCopy, endRef }: ConsoleViewProps) {
+  const [completionIndex, setCompletionIndex] = useState(0);
+  const [completionVisible, setCompletionVisible] = useState(false);
+  const activeCompletionIndex = completions.length ? Math.min(completionIndex, completions.length - 1) : 0;
+  const showCompletions = completionVisible && completions.length > 0;
+
+  const updateInput = (value: string) => {
+    setInput(value);
+    setCompletionIndex(0);
+    setCompletionVisible(true);
+  };
+
+  const completeCommand = (command: ConsoleCommandOption) => {
+    setInput(`${command.name} `);
+    setCompletionIndex(0);
+    setCompletionVisible(false);
+  };
+
+  const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (showCompletions && event.key === "Tab") {
+      event.preventDefault();
+      completeCommand(completions[activeCompletionIndex]);
+      return;
+    }
+    if (showCompletions && event.key === "ArrowDown") {
+      event.preventDefault();
+      setCompletionIndex((index) => (index + 1) % completions.length);
+      return;
+    }
+    if (showCompletions && event.key === "ArrowUp") {
+      event.preventDefault();
+      setCompletionIndex((index) => (index - 1 + completions.length) % completions.length);
+      return;
+    }
+    if (showCompletions && event.key === "Escape") {
+      event.preventDefault();
+      setCompletionVisible(false);
+      return;
+    }
+    onKeyDown(event);
+  };
+
   return (
     <div className="console-layout">
       <section className="terminal panel">
@@ -1309,7 +1359,28 @@ function ConsoleView({ entries, input, setInput, busy, search, setSearch, comman
           <div ref={endRef} />
         </div>
         <form className="terminal__input" onSubmit={(event) => { event.preventDefault(); onSubmit(); }}>
-          <span>rcon</span><b>›</b><input autoComplete="off" spellCheck={false} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={onKeyDown} placeholder="Type a command…" aria-label="RCON command" /><button type="submit" disabled={!input.trim() || busy}>{busy ? <LoaderCircle size={16} className="spin" /> : <Send size={16} />}<span>Execute</span></button>
+          {showCompletions && (
+            <div className="console-completions" role="listbox" id="rcon-command-completions" aria-label="Command completions">
+              <div className="console-completions__hint"><span>{completions.length} {completions.length === 1 ? "match" : "matches"}</span><span><kbd>↑</kbd><kbd>↓</kbd> select <kbd>Tab</kbd> complete</span></div>
+              {completions.map((command, index) => (
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={index === activeCompletionIndex}
+                  className={index === activeCompletionIndex ? "is-active" : ""}
+                  id={`rcon-completion-${index}`}
+                  key={command.name}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => completeCommand(command)}
+                >
+                  <Command size={14} />
+                  <span><code>{command.name}</code><small>{command.description}</small></span>
+                  <em>{command.meta}</em>
+                </button>
+              ))}
+            </div>
+          )}
+          <span>rcon</span><b>›</b><input role="combobox" autoComplete="off" spellCheck={false} value={input} onChange={(event) => updateInput(event.target.value)} onKeyDown={handleInputKeyDown} onFocus={() => setCompletionVisible(true)} onBlur={() => setCompletionVisible(false)} placeholder="Type a command…" aria-label="RCON command" aria-autocomplete="list" aria-haspopup="listbox" aria-controls="rcon-command-completions" aria-expanded={showCompletions} aria-activedescendant={showCompletions ? `rcon-completion-${activeCompletionIndex}` : undefined} /><button type="submit" disabled={!input.trim() || busy}>{busy ? <LoaderCircle size={16} className="spin" /> : <Send size={16} />}<span>Execute</span></button>
         </form>
       </section>
 

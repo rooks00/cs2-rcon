@@ -2398,6 +2398,8 @@ kbd {
 }
 
 .terminal__input {
+  position: relative;
+  z-index: 3;
   display: flex;
   min-height: 52px;
   flex: 0 0 auto;
@@ -2446,6 +2448,113 @@ kbd {
   font-size: 8px;
   font-weight: 700;
   cursor: pointer;
+}
+
+.console-completions {
+  position: absolute;
+  right: 8px;
+  bottom: calc(100% + 1px);
+  left: 8px;
+  max-height: min(330px, calc(100dvh - 320px));
+  overflow-y: auto;
+  border: 1px solid #343b43;
+  border-radius: 10px 10px 4px 4px;
+  background: rgba(17, 21, 25, 0.985);
+  box-shadow: 0 -18px 45px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(14px);
+}
+
+.console-completions__hint {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  display: flex;
+  min-height: 31px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 10px;
+  border-bottom: 1px solid #292f35;
+  background: #14181d;
+  color: #626b74;
+  font-size: 7px;
+  text-transform: uppercase;
+}
+
+.console-completions__hint > span:last-child {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.console-completions__hint kbd {
+  display: inline-grid;
+  min-width: 17px;
+  height: 17px;
+  place-items: center;
+  padding: 0 4px;
+  border: 1px solid #373e46;
+  border-radius: 4px;
+  background: #0d1013;
+  color: #858d95;
+  font-size: 7px;
+  text-transform: none;
+}
+
+.console-completions > button {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  min-height: 48px;
+  padding: 7px 10px;
+  border: 0;
+  border-bottom: 1px solid #20262c;
+  background: transparent;
+  color: #69727b;
+  text-align: left;
+  cursor: pointer;
+}
+
+.console-completions > button:last-child {
+  border-bottom: 0;
+}
+
+.console-completions > button:hover,
+.console-completions > button.is-active {
+  background: linear-gradient(90deg, rgba(245, 158, 66, 0.09), rgba(245, 158, 66, 0.025));
+  color: var(--orange);
+}
+
+.console-completions > button > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.console-completions code {
+  color: #d4d8db;
+  font-size: 9px;
+}
+
+.console-completions small {
+  overflow: hidden;
+  color: #69727b;
+  font-size: 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.console-completions em {
+  max-width: 110px;
+  overflow: hidden;
+  color: #59626b;
+  font-size: 7px;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .command-browser {

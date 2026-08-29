@@ -27,7 +27,7 @@ A normal browser cannot open the raw TCP connection required by the [Source RCON
 - Complete map discovery by merging `maps *` with `ds_workshop_listmaps`, including Workshop IDs parsed from paths and human titles resolved from Steam
 - Safe stock-map `changelevel` confirmations, map favorites, and automatic `host_workshop_map <id>` routing for Workshop cards
 - Dedicated game-mode manager with live `game_type`/`game_mode` values, the complete current Valve matrix, and non-disruptive staging
-- Raw terminal with history, response timing, copy, and arrow-key recall
+- Raw terminal with history, response timing, copy, arrow-key recall, and `Tab` completion from built-in plus server-synced commands
 - Dynamic command catalogue synced from the server’s own `cvarlist`
 - Multi-packet RCON responses, arbitrary TCP chunk boundaries, UTF-8 player names, response limits, and timeouts
 - Interactive demo mode that needs no server

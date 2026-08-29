@@ -94,6 +94,15 @@ export function getMapChangeCommand(map: ServerMap): string {
   return `changelevel ${map.name}`;
 }
 
+export function getCommandCompletions<T extends { name: string }>(commands: T[], input: string, limit = 8): T[] {
+  const commandToken = input.match(/^\s*([^\s]*)$/)?.[1].toLowerCase();
+  if (!commandToken) return [];
+  return commands
+    .filter((command) => command.name.toLowerCase().startsWith(commandToken))
+    .sort((a, b) => Number(b.name.toLowerCase() === commandToken) - Number(a.name.toLowerCase() === commandToken) || a.name.localeCompare(b.name))
+    .slice(0, limit);
+}
+
 export function categorizeMap(name: string): ServerMap["category"] {
   if (name.includes("workshop/") || /^workshop_/.test(name)) return "Workshop";
   if (name.startsWith("de_")) return "Defusal";
