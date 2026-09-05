@@ -24,7 +24,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  // Next 16.3 adapters (including Vercel) omit the trace needed by standalone
+  // packaging. Only create that package for an explicit self-hosted build.
+  output: process.env.RELAY_STANDALONE === "1" ? "standalone" : undefined,
   poweredByHeader: false,
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];

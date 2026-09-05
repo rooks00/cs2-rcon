@@ -19,7 +19,7 @@ npm run build
 npm start
 ```
 
-Use Node.js 22 or newer. The included Docker image uses Node 22.
+Use Node.js 22 or newer. The included Docker image uses Node 22. Docker explicitly enables `RELAY_STANDALONE=1`; normal and Vercel builds use standard output to avoid the Next 16.3 adapter/standalone trace conflict. Do not set `RELAY_STANDALONE` on Vercel.
 
 ```bash
 docker compose up --build -d
