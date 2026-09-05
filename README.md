@@ -105,7 +105,7 @@ The allowlist must contain the exact host entered by the user; wildcard entries 
 
 ## Features
 
-- A restrained, responsive console workspace with locally served typography and a translucent terminal
+- A responsive console workspace with reference-matched neutral glass surfaces, locally served Montserrat/DM Sans typography, and an interactive particle whale with pause/reduced-motion support
 - RCON prompt and live output on the main page immediately after connecting
 - Multiple browser-local server profiles; passwords held in memory by default
 - Inline connection validation and actionable errors, password visibility, JSON import and profile selection

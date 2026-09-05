@@ -1,17 +1,25 @@
 # Relay interface direction
 
-The revised brief explicitly replaces the earlier illustrated dashboard with a restrained interface inspired by [DeepSeek Harness](https://www.deepseek.com/harness/en/). The reference was inspected in a desktop browser before implementation.
+Reference: [DeepSeek Harness](https://www.deepseek.com/harness/en/), inspected in a browser and through its live styles. The current brief asks for its exact neutral surfaces, more elegant typography, and a similar interactive whale, while retaining the console-first workspace.
 
-Design read: a working CS2 console for server owners, using a quiet blue atmosphere, neutral typography and an elegant translucent terminal. Design variance 5, motion intensity 2, visual density 3. This is a visual overhaul of the application, not a new marketing site.
+## Measured visual system
 
-## Audit and decisions
+- Page base: `#0a0a0a`.
+- Primary text and action: white; secondary text white at 80%; description text white at 50%.
+- Surface layers: white at 4–6%; input fill white at 8%, with a white 20% border.
+- Terminal: black at 20%, white 8% border, 24px backdrop blur, 10px radius, no decorative shadow.
+- Typography: locally licensed Montserrat 500 for headings, DM Sans for interface text, Fragment Mono for the console. Display treatment follows the reference's 46px heading and -0.02em tracking. The current interface increases small labels, controls and console copy for readability.
 
-The previous design used a heavy fixed sidebar, orange accents, Barlow typography, a large decorative map diorama, multiple metric cards and a separate console destination. Those choices competed with the user's primary task. They are retired.
+Blue is no longer an interface accent or a tinted panel color. A localized blue/gray atmosphere is painted by the background scene over the neutral page. All UI color values come from the reference's measured theme, rather than approximated blue-gray tokens.
 
-The revision keeps the Relay identity, actual server management capabilities, inline/JSON connection flow, local helper launchers, and keyboard-accessible controls. The terminal becomes the main connected page, with compact true server state and secondary management tools. Command completion, history, copying and the command catalogue continue to work.
+## Interactive scene
 
-Reference characteristics applied: an understated horizontal header, generous controlled spacing, a broad desaturated blue background fading into a dark base, light neutral text, quiet white controls, and a single translucent terminal surface. The app does not copy DeepSeek branding or content, and does not add particle effects, decorative media or a fake terminal preview.
+The requested whale is an original, procedurally generated humpback point cloud. Its anatomy is authored in `lib/whale-particles.ts`; it does not use DeepSeek's logo or SVG. The dependency-free Canvas2D renderer projects the points in three dimensions, gently moves the tail, turns toward the pointer and disperses/reforms nearby particles. Background clicks create a brief additional dispersal; interactions with actual inputs, buttons and the console remain untouched.
 
-Typography is self-hosted DM Sans with Fragment Mono for actual console content. Background and translucency use CSS, with reduced-motion and reduced-transparency alternatives. The RCON prompt must remain visible and usable on a 1366×768 laptop; mobile layout is explicit.
+The scene is quieter during a connected RCON session. A visible control pauses/resumes motion. Reduced-motion preferences render a static scene, and hidden tabs stop requesting animation frames. Pointer coordinates and particle physics remain outside React state, with bounded particles and pixel ratio. No WebGL library, image download or additional native-helper runtime is required.
 
-The named taste skill is applied contextually. The user's requested functional terminal and removal of unnecessary images take priority over generic marketing-page image requirements. No new imagery is needed for this application.
+## Workspace
+
+RCON opens immediately after connection with actual status output. Main navigation is horizontal. Command reference and match controls remain secondary disclosures; all player, map, mode, ban, settings, JSON and local-helper functions are preserved. Static map artwork and decorative metric tiles remain removed.
+
+The standard `backdrop-filter` declaration must follow its WebKit-prefixed counterpart. This Next build's CSS transform otherwise retained only the prefixed rule, causing modern Chromium to render no blur. Actual computed styles are checked during visual verification.

@@ -1,11 +1,19 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import "@/components/ambient-whale.css";
 
 const sans = localFont({
   src: "../public/fonts/dm-sans-latin-variable.woff2",
   weight: "100 1000",
   variable: "--font-sans",
+  display: "swap",
+});
+
+const display = localFont({
+  src: "../public/fonts/montserrat-latin-500.woff2",
+  weight: "500",
+  variable: "--font-display",
   display: "swap",
 });
 
@@ -25,14 +33,14 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   colorScheme: "dark",
-  themeColor: "#101d30",
+  themeColor: "#0a0a0a",
   width: "device-width",
   initialScale: 1,
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
+    <html lang="en" className={`${sans.variable} ${display.variable} ${mono.variable}`}>
       <body>{children}</body>
     </html>
   );

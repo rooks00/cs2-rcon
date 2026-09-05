@@ -51,7 +51,7 @@ The password travels from the browser to the application's host. HTTPS protects 
 
 The connection workspace accepts a host/IP, TCP port, and RCON password. JSON imports recognize common aliases, nested configurations, server arrays and safe Relay exports. Users review one imported profile before connecting. Imports do not opt into password persistence. Connection errors explain authentication, routing, invalid input and limits, and demo data is explicitly labeled.
 
-The app authenticates and reads status before opening the main RCON console. Players, maps, Workshop, game modes, bans, match actions and console tools retain the existing RCON functionality. Native dialogs constrain keyboard focus and support Escape. Typography is self-hosted, and the interface uses a restrained translucent terminal without decorative media.
+The app authenticates and reads status before opening the main RCON console. Players, maps, Workshop, game modes, bans, match actions and console tools retain the existing RCON functionality. Native dialogs constrain keyboard focus and support Escape. Typography is self-hosted, and the interface uses neutral translucent surfaces with the requested controllable particle-whale background.
 
 ## Limits and verification
 
