@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
-import "@/components/ambient-whale.css";
+import "@/components/ambient-artwork.css";
 
 const sans = localFont({
   src: "../public/fonts/dm-sans-latin-variable.woff2",

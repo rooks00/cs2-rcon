@@ -57,7 +57,7 @@ import type {
   StoredState,
 } from "@/lib/types";
 import { RelayLogo } from "@/components/relay-logo";
-import { AmbientWhale, WhaleMotionControl } from "@/components/ambient-whale";
+import { AmbientArtwork, ArtworkMotionControl } from "@/components/ambient-artwork";
 import { ConnectionPanel, type ConnectionPanelProps, type ConnectionInput } from "@/components/connection-panel";
 
 type Section = "players" | "bans" | "maps" | "modes" | "console" | "settings";
@@ -552,7 +552,7 @@ export function RconDashboard() {
   const pageCopy = SECTION_COPY[section];
 
   return (
-    <AmbientWhale subdued={connected}>
+    <AmbientArtwork subdued={connected}>
     <div className={`app-shell ${connected ? "app-shell--connected" : "app-shell--welcome"}`}>
       <header className="topbar">
         <button className="topbar__brand" onClick={() => setSection("console")} aria-label="Relay home"><RelayLogo /><span className="brand-subtitle">for Counter-Strike 2</span></button>
@@ -570,7 +570,7 @@ export function RconDashboard() {
           </nav>
         )}
         <div className="topbar__actions">
-          <WhaleMotionControl />
+          <ArtworkMotionControl />
           <a className="topbar__link" href="/connection-guide">Connection guide</a>
           <button className={`icon-button ${section === "settings" ? "is-active" : ""}`} onClick={() => setSection("settings")} aria-label="Settings" title="Settings"><Settings size={18} /></button>
           {(connected || section === "settings") && <button className="button button--secondary topbar-connect" onClick={() => setConnectOpen(true)}><Plus size={15} />Connect server</button>}
@@ -842,7 +842,7 @@ export function RconDashboard() {
         ))}
       </div>
     </div>
-    </AmbientWhale>
+    </AmbientArtwork>
   );
 }
 

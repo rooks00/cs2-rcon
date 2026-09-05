@@ -1,6 +1,6 @@
 # Relay interface direction
 
-Reference: [DeepSeek Harness](https://www.deepseek.com/harness/en/), inspected in a browser and through its live styles. The current brief asks for its exact neutral surfaces, more elegant typography, and a similar interactive whale, while retaining the console-first workspace.
+Reference: [DeepSeek Harness](https://www.deepseek.com/harness/en/), inspected in a browser and through its live styles. The current brief asks for its exact neutral surfaces, more elegant typography, and interactive Tasheer art, while retaining the console-first workspace.
 
 ## Measured visual system
 
@@ -14,7 +14,7 @@ Blue is no longer an interface accent or a tinted panel color. A localized blue/
 
 ## Interactive scene
 
-The requested whale is an original, procedurally generated humpback point cloud. Its anatomy is authored in `lib/whale-particles.ts`; it does not use DeepSeek's logo or SVG. The dependency-free Canvas2D renderer projects the points in three dimensions, gently moves the tail, turns toward the pointer and disperses/reforms nearby particles. Background clicks create a brief additional dispersal; interactions with actual inputs, buttons and the console remain untouched.
+The requested Tasheer composition replaces the whale. Three adult performers in traditional clothing are depicted mid-jump with downward-facing rifles and smoke, using the user's pose references. An original generated illustration is sampled into a shallow-depth point portrait by `scripts/sample-tasheer-art.mjs` and `lib/tasheer-particles.ts`. The Canvas2D renderer preserves the pose while adding restrained cloth/smoke drift, pointer response and particle dispersal/reformation. See `docs/tasheer-artwork.md` for the source and prompt. Background clicks create a brief additional dispersal; interactions with actual inputs, buttons and the console remain untouched.
 
 The scene is quieter during a connected RCON session. A visible control pauses/resumes motion. Reduced-motion preferences render a static scene, and hidden tabs stop requesting animation frames. Pointer coordinates and particle physics remain outside React state, with bounded particles and pixel ratio. No WebGL library, image download or additional native-helper runtime is required.
 

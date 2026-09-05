@@ -47,3 +47,9 @@ The latest visual pass uses measured neutral colors from the reference, licensed
 An original procedural whale supplies the requested interactive scene. Browser checks passed pointer interaction, animated frames, pause/resume (including identical canvas output while paused), system reduced motion (static output even after pointer movement), and console autocomplete/execution with the scene active. The pause control lives in the header so it cannot overlap a mobile submit button. The prompt still fits at 1366×768 and 390×844 without horizontal overflow. An independent read-only review found no material lifecycle, cleanup, input-blocking or unbounded-allocation issue.
 
 The scene uses cached geometry, displacement buffers, haze and point colors, with no per-frame React state, and stops scheduling frames in hidden tabs. It requires no extra runtime dependency or image download. Existing 74 web tests, lint/type checks and the adapter production build continue to pass.
+
+## Tasheer artwork replacement
+
+The whale was replaced by an original generated grayscale composition of three adult Tasheer performers, using the user-provided pose/clothing references. A seeded build-time sampler converts the source image into 9,000 portrait points; the existing renderer uses a bounded desktop/mobile subset, shallow depth and gentle drift. The old whale geometry and component names were removed.
+
+Visual checks confirmed the three airborne figures and downward-facing rifles remain legible in the background. Browser checks passed pointer response, pause/resume (frozen canvas output while paused), reduced motion, console autocomplete/execution and mobile prompt visibility without horizontal overflow. Lint, TypeScript, all 74 existing tests and the adapter production build pass. The source and generation prompt are documented in `docs/tasheer-artwork.md`.
