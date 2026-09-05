@@ -57,7 +57,7 @@ import type {
   StoredState,
 } from "@/lib/types";
 import { RelayLogo } from "@/components/relay-logo";
-import { AmbientArtwork, ArtworkMotionControl } from "@/components/ambient-artwork";
+import { AmbientArtwork, ArtworkMotionControl, ArtworkStage } from "@/components/ambient-artwork";
 import { ConnectionPanel, type ConnectionPanelProps, type ConnectionInput } from "@/components/connection-panel";
 
 type Section = "players" | "bans" | "maps" | "modes" | "console" | "settings";
@@ -574,6 +574,9 @@ export function RconDashboard() {
           <a className="topbar__link" href="/connection-guide">Connection guide</a>
           <button className={`icon-button ${section === "settings" ? "is-active" : ""}`} onClick={() => setSection("settings")} aria-label="Settings" title="Settings"><Settings size={18} /></button>
           {(connected || section === "settings") && <button className="button button--secondary topbar-connect" onClick={() => setConnectOpen(true)}><Plus size={15} />Connect server</button>}
+          {!connected && section !== "settings" && <button className="button button--secondary welcome-connect-shortcut" onClick={() => {
+            document.querySelector(".connection-panel")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+          }}>Connect server</button>}
         </div>
       </header>
 
@@ -850,6 +853,7 @@ function ConnectionWorkspace(props: ConnectionPanelProps) {
   return (
     <section className="connection-workspace">
       <div className="connection-intro">
+        <ArtworkStage />
         <h1>Counter-Strike 2, from your browser.</h1>
         <p>Run commands, manage players, and change maps in one console.</p>
       </div>

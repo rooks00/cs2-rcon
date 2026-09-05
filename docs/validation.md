@@ -53,3 +53,11 @@ The scene uses cached geometry, displacement buffers, haze and point colors, wit
 The whale was replaced by an original generated grayscale composition of three adult Tasheer performers, using the user-provided pose/clothing references. A seeded build-time sampler converts the source image into 9,000 portrait points; the existing renderer uses a bounded desktop/mobile subset, shallow depth and gentle drift. The old whale geometry and component names were removed.
 
 Visual checks confirmed the three airborne figures and downward-facing rifles remain legible in the background. Browser checks passed pointer response, pause/resume (frozen canvas output while paused), reduced motion, console autocomplete/execution and mobile prompt visibility without horizontal overflow. Lint, TypeScript, all 74 existing tests and the adapter production build pass. The source and generation prompt are documented in `docs/tasheer-artwork.md`.
+
+## Single larger Tasheer portrait
+
+The current artwork contains exactly one original generated performer. The new source resolves carved wood, metal bands/edges and garment patterns/folds. Sampling increased from 9,000 to 20,000 points at higher resolution, with 14,000 desktop / 5,000 coarse-pointer particles and wider tonal contrast. A faint cached source layer retains microdetail beneath the interactive points.
+
+The desktop stage measures 620px at 1440×1000 and about 483px at 1366×768, yielding roughly 450–600px of visible portrait height; the prior central figure was about 180px. Mobile uses a 320–410px stage and a header shortcut to the connection form. The image/points stay aligned, clipped to the stage, and follow scrolling without overlapping the form or headline. The source layer is omitted in the connected console.
+
+Browser checks passed pause/resume, static reduced motion, paused scrolling, large-stage sizing, mobile connection shortcut, no horizontal overflow, and console completion/execution with a visible laptop prompt. Lint, TypeScript, all 74 existing tests and the adapter production build pass. The previous three-person artwork is superseded.

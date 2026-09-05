@@ -1,5 +1,7 @@
 import cloud from "./tasheer-cloud.json";
 
+export const TASHEER_SOURCE = cloud.image;
+
 export type ArtworkParticle = {
   x: number;
   y: number;
@@ -10,7 +12,7 @@ export type ArtworkParticle = {
   flex: number;
 };
 
-/** A deterministic, shallow-depth portrait of the referenced Tasheer poses. */
+/** A deterministic, shallow-depth portrait of the detailed single Tasheer performer. */
 export function createTasheerParticles(count: number, seed = 0x54415348): ArtworkParticle[] {
   const total = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
   let state = seed >>> 0;
@@ -25,8 +27,8 @@ export function createTasheerParticles(count: number, seed = 0x54415348): Artwor
       x: source[0] / 10000,
       y,
       z: (random() - .5) * .065 + (1 - luminance) * .07,
-      size: .68 + random() * .50 + luminance * .26,
-      brightness: .18 + Math.pow(luminance, .7) * .78,
+      size: .55 + random() * .30 + luminance * .35,
+      brightness: .08 + Math.pow(luminance, .85) * .9,
       phase: random() * Math.PI * 2,
       // Fine cloth/smoke drift keeps the photographed airborne pose coherent.
       flex: Math.max(0, Math.min(1, (.35 - y) * .6)) * .45,

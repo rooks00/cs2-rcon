@@ -60,6 +60,7 @@ svg { flex-shrink: 0; }
 .topbar__link { color: var(--muted); font-size: 12px; text-decoration: none; white-space: nowrap; }
 .topbar__actions .icon-button.is-active { background: var(--panel-hover); color: var(--text); }
 .topbar__actions .button { min-height: 35px; padding: 7px 13px; font-size: 13px; }
+.topbar .welcome-connect-shortcut { display: none; }
 .connection-pill { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); white-space: nowrap; }
 .connection-pill.is-online { color: var(--text-soft); }
 .connection-pill.is-online .pulse-dot { background: var(--green); }
@@ -100,7 +101,8 @@ svg { flex-shrink: 0; }
 
 /* Connect immediately; installation remains an optional form view. */
 .connection-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(380px, 456px); gap: 100px; align-items: center; min-height: min(700px, calc(100dvh - 172px)); padding: 28px 28px 42px 0; }
-.connection-intro { align-self: center; padding-bottom: 26px; }
+.connection-intro { align-self: center; padding-bottom: 0; }
+.connection-artwork-stage { width: 100%; height: clamp(480px, calc(100dvh - 270px), 620px); margin-bottom: 12px; }
 .connection-intro h1 { max-width: 530px; font-size: clamp(36px, 3.5vw, 46px); line-height: 1.2; font-weight: 500; letter-spacing: -.02em; text-wrap: balance; }
 .connection-intro > p { max-width: 435px; margin-top: 27px; color: var(--muted); font-size: 16px; line-height: 1.8; }
 .connection-intro > .eyebrow, .connection-intro__label { display: block; margin: 0 0 21px; color: var(--text-soft); font-size: 14px; }
@@ -463,6 +465,10 @@ dialog.modal-layer::backdrop { background: transparent; }
 @media (min-width: 768px) and (max-height: 850px) {
   .app-shell--welcome .content-wrap { padding-top: 20px; padding-bottom: 26px; }
   .connection-workspace { min-height: calc(100dvh - 140px); padding-block: 0; }
+  .connection-workspace > .connection-panel { align-self: start; }
+  .connection-artwork-stage { height: clamp(475px, calc(100dvh - 285px), 555px); }
+  .connection-intro h1 { font-size: 36px; }
+  .connection-intro > p { margin-top: 14px; }
   .connection-panel { padding: 25px; }
   .connection-method { margin-top: 16px; margin-bottom: 0; padding-block: 0; }
   .connection-tabs { margin-block: 18px; }
@@ -492,6 +498,8 @@ dialog.modal-layer::backdrop { background: transparent; }
   .settings-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 767px) {
+  .topbar .welcome-connect-shortcut { display: inline-flex; }
+  .app-shell--welcome .topbar__link { display: none; }
   .topbar { min-height: 76px; padding: 21px 20px 12px; }
   .relay-logo { gap: 7px; font-size: 25px; }
   .relay-logo svg { width: 27px; height: 27px; }
@@ -512,6 +520,7 @@ dialog.modal-layer::backdrop { background: transparent; }
   .updated-copy { font-size: 11px; }
   .connection-workspace { display: flex; flex-direction: column; align-items: stretch; gap: 31px; min-height: auto; padding: 17px 0 14px; max-width: 480px; margin: 0 auto; }
   .connection-intro { align-self: stretch; padding: 0; }
+  .connection-artwork-stage { height: clamp(320px, 48dvh, 410px); margin-bottom: 17px; }
   .connection-intro h1 { max-width: 410px; font-size: 38px; letter-spacing: -1.1px; line-height: 1.2; }
   .connection-intro > p { margin-top: 17px; max-width: 420px; font-size: 14px; line-height: 1.75; }
   .connection-intro > .eyebrow, .connection-intro__label { margin-bottom: 16px; font-size: 13px; }
