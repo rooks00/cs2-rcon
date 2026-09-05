@@ -51,7 +51,7 @@ The password travels from the browser to the application's host. HTTPS protects 
 
 The connection workspace accepts a host/IP, TCP port, and RCON password. JSON imports recognize common aliases, nested configurations, server arrays and safe Relay exports. Users review one imported profile before connecting. Imports do not opt into password persistence. Connection errors explain authentication, routing, invalid input and limits, and demo data is explicitly labeled.
 
-The app authenticates and reads status before opening the management dashboard. Players, maps, Workshop, game modes, bans, match actions and console tools retain the existing RCON functionality. Native dialogs constrain keyboard focus and support Escape. Fonts and the custom 3D illustration are served by the application.
+The app authenticates and reads status before opening the main RCON console. Players, maps, Workshop, game modes, bans, match actions and console tools retain the existing RCON functionality. Native dialogs constrain keyboard focus and support Escape. Typography is self-hosted, and the interface uses a restrained translucent terminal without decorative media.
 
 ## Limits and verification
 
@@ -60,3 +60,11 @@ A normal static hosting service cannot run the TCP route. A public installation 
 Verification passed: 65 automated tests, lint, production and Docker builds, container health checks, browser-to-container-to-TCP authentication and commands, JSON imports, error and password-persistence handling, and sampled desktop/mobile workflows. The TCP fixture exercised the built-in production route without an installation key. This does not substitute for connecting to a configured CS2 server on the intended production network. No real server credentials or production deployment were available for that test.
 
 Research stopped when primary protocol specifications and current first-party browser/hosting documentation resolved the decision. The Valve Developer Community wiki returned HTTP 403; the archived original protocol specification was used instead. No material contradiction remained; platform eligibility and hosting egress can change and should be rechecked when deploying.
+
+## Follow-up: lightweight native helper and Vercel packaging
+
+The follow-up request adds optional native software, changing the original exclusion of client installation. Relay now offers a small foreground Go executable for six OS/CPU targets. A one-line launcher downloads and verifies it in a temporary directory. It serves the existing website UI through an authenticated loopback workspace and handles `/api/rcon` on the user's machine. It needs no Docker or language runtime and stops with its terminal session. The hosted route remains the default.
+
+Serving the interface at the loopback origin avoids browser-to-localhost cross-origin requests entirely. This is a deliberate response to [Chrome Local Network Access restrictions](https://developer.chrome.com/blog/local-network-access) and [browser mixed-content policies](https://developer.mozilla.org/en-US/docs/Web/Security/Defenses/Mixed_content); it does not disable browser checks or claim universal localhost exceptions. UI assets and optional Workshop metadata still require the configured website. The helper's launch pairing and application session are automatic, ephemeral, and never forwarded to that website.
+
+The reported Vercel `next-server.js.nft.json` failure matches the [Next 16.3 adapter/standalone conflict](https://github.com/vercel/next.js/issues/96646), also described with a reproduction in [the related upstream issue](https://github.com/vercel/next.js/issues/96657). Inspection of the installed Next build code confirmed the standalone copy step still reads this trace while adapter builds omit it. Standalone packaging is now opt-in through `RELAY_STANDALONE=1` in the Docker build. Normal and Vercel builds use normal output. A real adapter smoke build verifies the hosted RCON route is present, so testing no longer relies on `VERCEL=1` alone.

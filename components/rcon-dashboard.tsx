@@ -1,27 +1,21 @@
 "use client";
 
 import {
-  Activity,
   Ban,
   Bot,
   Check,
   ChevronDown,
   ChevronRight,
   CircleDot,
-  Clock3,
   Command,
   Copy,
   Download,
   Gamepad2,
-  Gauge,
-  Gavel,
   Globe2,
   HardDrive,
-  LayoutDashboard,
   LoaderCircle,
   LockKeyhole,
   Map as MapIcon,
-  Menu,
   MessageSquare,
   Pause,
   Play,
@@ -33,10 +27,8 @@ import {
   Send,
   Server,
   Settings,
-  Shield,
   ShieldCheck,
   ShieldOff,
-  SquareTerminal,
   Star,
   Swords,
   Target,
@@ -65,10 +57,9 @@ import type {
   StoredState,
 } from "@/lib/types";
 import { RelayLogo } from "@/components/relay-logo";
-import Image from "next/image";
 import { ConnectionPanel, type ConnectionPanelProps, type ConnectionInput } from "@/components/connection-panel";
 
-type Section = "overview" | "players" | "bans" | "maps" | "modes" | "console" | "settings";
+type Section = "players" | "bans" | "maps" | "modes" | "console" | "settings";
 type Secrets = { password: string; relayKey: string };
 type Toast = { id: string; message: string; tone: "success" | "error" | "info" };
 type ConsoleCommandOption = { name: string; syntax: string; description: string; meta: string };
@@ -89,22 +80,20 @@ const DEMO_PROFILE: ServerProfile = {
   createdAt: 0,
 };
 
-const NAV_ITEMS: Array<{ id: Section; label: string; icon: LucideIcon }> = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "players", label: "Players", icon: Users },
-  { id: "bans", label: "Ban list", icon: Gavel },
-  { id: "maps", label: "Maps", icon: MapIcon },
-  { id: "modes", label: "Game modes", icon: Swords },
-  { id: "console", label: "Console", icon: SquareTerminal },
+const NAV_ITEMS: Array<{ id: Section; label: string }> = [
+  { id: "console", label: "Console" },
+  { id: "players", label: "Players" },
+  { id: "bans", label: "Ban list" },
+  { id: "maps", label: "Maps" },
+  { id: "modes", label: "Game modes" },
 ];
 
 const SECTION_COPY: Record<Section, { eyebrow: string; title: string; description: string }> = {
-  overview: { eyebrow: "Control room", title: "Server overview", description: "Live health, players, and match controls." },
   players: { eyebrow: "Roster", title: "Connected players", description: "Inspect, kick, or ban the current roster." },
   bans: { eyebrow: "Moderation", title: "Ban list", description: "Steam and IP filters reported by the server." },
   maps: { eyebrow: "Rotation", title: "Server maps", description: "Browse installed maps and change level safely." },
   modes: { eyebrow: "Ruleset", title: "Game modes", description: "Manage the exact game_type and game_mode pair." },
-  console: { eyebrow: "RCON", title: "Command console", description: "Run any command exposed by your CS2 server." },
+  console: { eyebrow: "RCON", title: "Server console", description: "Commands, players, and match controls in one place." },
   settings: { eyebrow: "Local setup", title: "Settings", description: "Profiles, polling, and browser-only data." },
 };
 
@@ -191,7 +180,7 @@ async function requestWorkshopTitles(ids: string[]): Promise<Record<string, stri
 export function RconDashboard() {
   const [hydrated, setHydrated] = useState(false);
   const [stored, setStored] = useState<StoredState>(() => loadStoredState());
-  const [section, setSection] = useState<Section>("overview");
+  const [section, setSection] = useState<Section>("console");
   const [demoMode, setDemoMode] = useState(false);
   const [secrets, setSecrets] = useState<Secrets>(() => {
     const initial = loadStoredState();
@@ -211,7 +200,6 @@ export function RconDashboard() {
   const [currentGameMode, setCurrentGameMode] = useState<{ type: number; mode: number } | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [connectOpen, setConnectOpen] = useState(false);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [confirmationBusy, setConfirmationBusy] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -340,15 +328,17 @@ export function RconDashboard() {
       setDemoMode(profile.id === "demo");
       setConnected(true);
       setConnectOpen(false);
-      setSection("overview");
-      notify(`Connected to ${profile.name}.`, "success");
+      setSection("console");
+      for (const result of statusResults.filter((result) => result.command === "status")) {
+        addHistory({ id: makeId("command"), command: result.command, response: result.response || "Command completed with no output.", status: "success", timestamp: Date.now(), durationMs: result.durationMs });
+      }
     } catch (error) {
       notify(error instanceof Error ? error.message : "Connection failed.", "error");
       throw error;
     } finally {
       setConnecting(false);
     }
-  }, [notify]);
+  }, [addHistory, notify]);
 
   const saveAndConnect = useCallback(async (input: ConnectionInput) => {
     const profile: ServerProfile = {
@@ -545,7 +535,7 @@ export function RconDashboard() {
     setDemoMode(false);
     setSecrets({ password: "", relayKey: secrets.relayKey });
     setConnectOpen(false);
-    setSection("overview");
+    setSection("console");
   };
 
   if (!hydrated) {
@@ -553,7 +543,7 @@ export function RconDashboard() {
       <main className="boot-screen">
         <RelayLogo />
         <div className="boot-line"><span /></div>
-        <p>Preparing local control surface</p>
+        <p>Opening your console</p>
       </main>
     );
   }
@@ -561,118 +551,51 @@ export function RconDashboard() {
   const pageCopy = SECTION_COPY[section];
 
   return (
-    <div className="app-shell">
-      <aside className={`sidebar ${mobileNavOpen ? "sidebar--open" : ""}`}>
-        <div className="sidebar__top">
-          <div><RelayLogo /><p className="brand-subtitle">Counter-Strike 2</p></div>
-          <button className="icon-button sidebar__close" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation"><X size={19} /></button>
-        </div>
-
-        <button className="server-switcher" onClick={() => setConnectOpen(true)}>
-          <span className={`server-switcher__mark ${connected ? "is-online" : ""}`}><Server size={17} /></span>
-          <span className="server-switcher__copy">
-            <strong>{activeProfile?.name ?? "No server"}</strong>
-            <small>{activeProfile ? `${activeProfile.host}:${activeProfile.port}` : "Add a connection"}</small>
-          </span>
-          <ChevronDown size={15} />
-        </button>
-
-        <nav className="main-nav" aria-label="Primary navigation">
-          <p className="nav-label">Server management</p>
-          {NAV_ITEMS.map((item) => (
-            <button
-              key={item.id}
-              className={section === item.id ? "is-active" : ""}
-              aria-current={section === item.id ? "page" : undefined}
-              aria-label={item.label}
-              onClick={() => {
+    <div className={`app-shell ${connected ? "app-shell--connected" : "app-shell--welcome"}`}>
+      <header className="topbar">
+        <button className="topbar__brand" onClick={() => setSection("console")} aria-label="Relay home"><RelayLogo /><span className="brand-subtitle">for Counter-Strike 2</span></button>
+        {connected && (
+          <nav className="main-nav" aria-label="Primary navigation">
+            {NAV_ITEMS.map((item) => (
+              <button key={item.id} className={section === item.id ? "is-active" : ""} aria-label={item.label} aria-current={section === item.id ? "page" : undefined} onClick={() => {
                 setSection(item.id);
-                setMobileNavOpen(false);
-                if (item.id === "modes" && connected) void refreshGameMode(false);
-              }}
-            >
-              <item.icon size={18} />
-              <span>{item.label}</span>
-              {item.id === "players" && snapshot?.humans ? <em>{snapshot.humans}</em> : null}
-              {item.id === "bans" && bans.length ? <em>{bans.length}</em> : null}
-            </button>
-          ))}
-        </nav>
-
-        <div className="sidebar__bottom">
-          <button className={section === "settings" ? "is-active" : ""} onClick={() => { setSection("settings"); setMobileNavOpen(false); }}>
-            <Settings size={18} /><span>Settings</span>
-          </button>
-          <div className="storage-note">
-            <HardDrive size={15} />
-            <span><strong>Your workspace</strong><small>Saved in this browser</small></span>
-            <ShieldCheck size={15} />
-          </div>
+                if (item.id === "modes") void refreshGameMode(false);
+              }}>
+                {item.label}
+                {item.id === "players" && snapshot?.humans ? <em>{snapshot.humans}</em> : null}
+              </button>
+            ))}
+          </nav>
+        )}
+        <div className="topbar__actions">
+          <a className="topbar__link" href="/connection-guide">Connection guide</a>
+          <button className={`icon-button ${section === "settings" ? "is-active" : ""}`} onClick={() => setSection("settings")} aria-label="Settings" title="Settings"><Settings size={18} /></button>
+          {(connected || section === "settings") && <button className="button button--secondary topbar-connect" onClick={() => setConnectOpen(true)}><Plus size={15} />Connect server</button>}
         </div>
-      </aside>
-      {mobileNavOpen && <button className="nav-scrim" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation" />}
+      </header>
 
-      <main className="workspace">
-        <header className="topbar">
-          <button className="icon-button mobile-menu" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation"><Menu size={20} /></button>
-          <div className="topbar__titles">
-            <span>Workspace</span><ChevronRight size={13} />
-            <strong>{connected ? pageCopy.title : "Getting started"}</strong>
-          </div>
-          <div className="topbar__actions">
-            <div className={`connection-pill ${connected ? "is-online" : ""}`}>
-              <span className="pulse-dot" />
-              <span>{connected ? (demoMode ? "Demo session" : "Connected") : "Local workspace"}</span>
-            </div>
-            <button className="icon-button" onClick={() => void refreshStatus()} disabled={!activeProfile || refreshing} aria-label="Refresh status">
-              <RefreshCw size={17} className={refreshing ? "spin" : ""} />
-            </button>
-            <button className="button button--secondary topbar-connect" onClick={() => { if (connected || section === "settings") setConnectOpen(true); else document.querySelector<HTMLInputElement>(".connect-form input")?.focus(); }}><Plus size={15} />Connect server</button>
-          </div>
-        </header>
-
+      <main className="workspace" id="main-content">
         <div className="content-wrap">
-          <div className="page-heading">
-            <div>
-              <h1>{!connected && section !== "settings" ? "Your server. Under control." : pageCopy.title}</h1>
-              <p>{!connected && section !== "settings" ? "Connect your CS2 server and take it from here." : pageCopy.description}</p>
-            </div>
-            {activeProfile && (
-              <div className="updated-copy">
-                <Clock3 size={14} /> Updated {formatRelative(snapshot?.updatedAt)}
+          {(connected || section === "settings") && (
+            <div className="page-heading">
+              <div>
+                <h1>{pageCopy.title}</h1>
+                <p>{section === "console" && activeProfile ? activeProfile.name : pageCopy.description}</p>
               </div>
-            )}
-          </div>
+              {connected && (
+                <div className="session-heading-actions">
+                  <span className="connection-pill is-online"><span className="pulse-dot" />{demoMode ? "Demo session" : "Connected"}</span>
+                  <button className="icon-button" onClick={() => void refreshStatus()} disabled={refreshing} aria-label="Refresh status" title={`Updated ${formatRelative(snapshot?.updatedAt)}`}><RefreshCw size={16} className={refreshing ? "spin" : ""} /></button>
+                  <button className="icon-button" onClick={disconnect} aria-label="Disconnect server" title="Disconnect server"><Unplug size={16} /></button>
+                </div>
+              )}
+            </div>
+          )}
 
           {!connected && section !== "settings" ? (
             <ConnectionWorkspace key={activeProfile?.id ?? "new"} profiles={stored.profiles} activeProfile={demoMode ? null : activeProfile} secrets={secrets} busy={connecting} onSave={saveAndConnect} onDemo={() => void connectProfile(DEMO_PROFILE, { password: "demo", relayKey: "" })} />
           ) : (
             <>
-              {section === "overview" && snapshot && (
-                <Overview
-                  snapshot={snapshot}
-                  profile={activeProfile!}
-                  latency={lastLatency}
-                  history={stored.consoleHistory}
-                  broadcast={broadcast}
-                  setBroadcast={setBroadcast}
-                  onBroadcast={() => {
-                    const message = broadcast.trim();
-                    if (!message) return;
-                    setBroadcast("");
-                    void runQuick(`say ${quoteRcon(message)}`, "Message sent to the server.").catch(() => undefined);
-                  }}
-                  onNavigate={setSection}
-                  onRefresh={() => void refreshStatus()}
-                  onQuick={(command, title, body, label) => confirmAction({
-                    title,
-                    body,
-                    label,
-                    tone: "warning",
-                    action: async () => { await runQuick(command, `${title} command sent.`); },
-                  })}
-                />
-              )}
               {section === "players" && snapshot && (
                 <PlayersView
                   players={filteredPlayers}
@@ -798,26 +721,44 @@ export function RconDashboard() {
                   onStage={(preset) => void stageGameMode(preset).catch((error) => notify(error instanceof Error ? error.message : "Could not stage the game mode.", "error"))}
                 />
               )}
-              {section === "console" && (
-                <ConsoleView
-                  entries={stored.consoleHistory}
-                  input={consoleInput}
-                  setInput={setConsoleInput}
-                  busy={consoleBusy}
-                  search={consoleSearch}
-                  setSearch={setConsoleSearch}
-                  commands={filteredCommands}
-                  completions={commandCompletions}
-                  syncedCount={stored.syncedCommands.length}
-                  syncing={catalogLoading}
-                  onSync={() => void syncCatalog()}
-                  onSubmit={() => void executeConsole()}
-                  onKeyDown={handleConsoleKeyDown}
-                  onUseCommand={(command) => setConsoleInput(command)}
-                  onClear={() => setStored((current) => ({ ...current, consoleHistory: [] }))}
-                  onCopy={(value) => { void navigator.clipboard.writeText(value); notify("Copied to clipboard.", "success"); }}
-                  endRef={terminalEndRef}
-                />
+              {section === "console" && snapshot && activeProfile && (
+                <div className="console-workspace">
+                  <ConsoleView
+                    entries={stored.consoleHistory}
+                    input={consoleInput}
+                    setInput={setConsoleInput}
+                    busy={consoleBusy}
+                    search={consoleSearch}
+                    setSearch={setConsoleSearch}
+                    commands={filteredCommands}
+                    completions={commandCompletions}
+                    syncedCount={stored.syncedCommands.length}
+                    syncing={catalogLoading}
+                    snapshot={snapshot}
+                    profile={activeProfile}
+                    latency={lastLatency}
+                    demoMode={demoMode}
+                    onSync={() => void syncCatalog()}
+                    onSubmit={() => void executeConsole()}
+                    onKeyDown={handleConsoleKeyDown}
+                    onUseCommand={(command) => setConsoleInput(command)}
+                    onClear={() => setStored((current) => ({ ...current, consoleHistory: [] }))}
+                    onCopy={(value) => { void navigator.clipboard.writeText(value).then(() => notify("Copied to clipboard.", "success")).catch(() => notify("Could not copy. Select the response and copy it manually.", "error")); }}
+                    endRef={terminalEndRef}
+                  />
+                  <SessionControls
+                    broadcast={broadcast}
+                    setBroadcast={setBroadcast}
+                    onBroadcast={() => {
+                      const message = broadcast.trim();
+                      if (!message) return;
+                      setBroadcast("");
+                      void runQuick(`say ${quoteRcon(message)}`, "Message sent to the server.").catch(() => undefined);
+                    }}
+                    onMaps={() => setSection("maps")}
+                    onQuick={(command, title, body, label) => confirmAction({ title, body, label, tone: "warning", action: async () => { await runQuick(command, `${title} command sent.`); } })}
+                  />
+                </div>
               )}
               {section === "settings" && (
                 <SettingsView
@@ -904,121 +845,41 @@ export function RconDashboard() {
 function ConnectionWorkspace(props: ConnectionPanelProps) {
   return (
     <section className="connection-workspace">
-      <ConnectionPanel {...props} />
-      <div className="welcome-scene">
-        <div className="welcome-scene__image"><Image src="/images/desert-diorama.webp" alt="A detailed sandstone map diorama with palm trees and a courtyard" width={1536} height={1024} priority sizes="(max-width: 760px) 95vw, 55vw" /></div>
-        <div className="welcome-scene__caption"><span className="scene-line" /><p>Built for the game.<br /><strong>Ready for your server.</strong></p></div>
-        <div className="welcome-features">
-          <div><Users size={20} /><h3>Manage players</h3><p>Keep your server in good company.</p></div>
-          <div><MapIcon size={20} /><h3>Make the call</h3><p>Maps, modes, and match controls.</p></div>
-          <div><SquareTerminal size={20} /><h3>Full command</h3><p>Your server console, one tab away.</p></div>
-        </div>
-        <div className="welcome-footnote"><span><Check size={13} />No account needed</span><span><Check size={13} />No extra connection setup</span></div>
+      <div className="connection-intro">
+        <h1>Counter-Strike 2, from your browser.</h1>
+        <p>Run commands, manage players, and change maps in one console.</p>
       </div>
+      <ConnectionPanel {...props} />
     </section>
   );
 }
 
-interface OverviewProps {
-  snapshot: ServerSnapshot;
-  profile: ServerProfile;
-  latency: number | null;
-  history: ConsoleEntry[];
+interface SessionControlsProps {
   broadcast: string;
   setBroadcast: (value: string) => void;
   onBroadcast: () => void;
-  onNavigate: (section: Section) => void;
-  onRefresh: () => void;
+  onMaps: () => void;
   onQuick: (command: string, title: string, body: string, label: string) => void;
 }
 
-function Overview({ snapshot, profile, latency, history, broadcast, setBroadcast, onBroadcast, onNavigate, onRefresh, onQuick }: OverviewProps) {
-  const occupancy = snapshot.maxPlayers ? Math.min(100, Math.round(((snapshot.humans + snapshot.bots) / snapshot.maxPlayers) * 100)) : 0;
+function SessionControls({ broadcast, setBroadcast, onBroadcast, onMaps, onQuick }: SessionControlsProps) {
   return (
-    <div className="dashboard-grid">
-      <section className="server-hero panel">
-        <div className="server-hero__scene"><Image src="/images/desert-diorama.webp" alt="" fill sizes="(max-width: 760px) 100vw, 55vw" priority /></div>
-        <div className="server-hero__head">
-          <div className="live-label"><span className="pulse-dot" />{profile.id === "demo" ? "Demo server · Sample data" : "Server connected"}</div>
-          <button className="icon-button icon-button--soft" onClick={onRefresh} aria-label="Refresh server"><RefreshCw size={16} /></button>
-        </div>
-        <div className="server-hero__content">
-
-          <div>
-            <p className="server-hero__game">Counter-Strike 2</p><h2>{profile.name}</h2><p className="server-hero__hostname">{snapshot.hostname}</p>
-            <p><Globe2 size={14} />{profile.host}:{profile.port}</p>
-          </div>
-        </div>
-        <div className="server-hero__footer">
-          <span><MapIcon size={15} /><small>Current map</small><strong>{snapshot.map}</strong></span>
-          <span><Activity size={15} /><small>Platform</small><strong>{snapshot.os || "Source 2"}</strong></span>
-          <span>{snapshot.secure === false ? <ShieldOff size={15} /> : <Shield size={15} />}<small>VAC</small><strong>{snapshot.secure === false ? "Insecure" : snapshot.secure ? "Secure" : "Unknown"}</strong></span>
-        </div>
-      </section>
-
-      <section className="metrics-grid">
-        <MetricCard icon={Users} label="Players" value={`${snapshot.humans + snapshot.bots}`} suffix={snapshot.maxPlayers ? `/ ${snapshot.maxPlayers}` : "online"} detail={`${snapshot.humans} humans · ${snapshot.bots} bots`} tone="orange" progress={occupancy} />
-        <MetricCard icon={Gauge} label="RCON response" value={latency ? `${latency}` : "—"} suffix={latency ? "ms" : "waiting"} detail={latency && latency < 350 ? "Healthy connection" : "Last command round trip"} tone="green" />
-        <MetricCard icon={MapIcon} label="Current map" value={snapshot.map.replace(/^(de|cs)_/, "")} suffix="" detail={snapshot.map} tone="blue" />
-        <MetricCard icon={ShieldCheck} label="VAC status" value={snapshot.secure === true ? "Secured" : snapshot.secure === false ? "Insecure" : "Unknown"} suffix="" detail={snapshot.secure === true ? "Anti-cheat enabled" : "Reported by your server"} tone={snapshot.secure === true ? "green" : snapshot.secure === false ? "red" : "neutral"} />
-      </section>
-
-      <section className="panel roster-panel">
-        <PanelHeading eyebrow="Live roster" title="Players" action={<button className="text-button" onClick={() => onNavigate("players")}>View all <ChevronRight size={14} /></button>} />
-        {snapshot.players.length ? (
-          <div className="mini-roster">
-            {snapshot.players.slice(0, 5).map((player) => (
-              <div key={`${player.userId}-${player.steamId}`}>
-                <span className="player-avatar" style={{ "--avatar-hue": avatarHue(player.name) } as React.CSSProperties}>{player.isBot ? <Bot size={16} /> : initials(player.name)}</span>
-                <span className="mini-roster__name"><strong>{player.name}</strong><small>{player.isBot ? "BOT" : player.steamId || "Steam ID unavailable"}</small></span>
-                <span className={`ping ${player.ping && player.ping > 80 ? "ping--high" : ""}`}><i />{player.ping ?? "—"} ms</span>
-              </div>
-            ))}
-          </div>
-        ) : <InlineEmpty icon={Users} title="No players connected" copy="The server is ready for its next match." />}
-      </section>
-
-      <section className="panel quick-panel">
-        <PanelHeading eyebrow="Match control" title="Match controls" />
-        <div className="quick-grid">
-          <button onClick={() => onQuick("mp_restartgame 1", "Restart match", "The match will restart after one second and current round progress will reset.", "Restart match")}><span><RotateCcw size={18} /></span><strong>Restart match</strong><small>1 second delay</small></button>
-          <button onClick={() => onQuick("mp_warmup_end", "End warmup", "Warmup will end immediately and the configured match flow will continue.", "End warmup")}><span><Play size={18} /></span><strong>End warmup</strong><small>Go live now</small></button>
-          <button onClick={() => onQuick("mp_pause_match", "Pause match", "The match will pause using CS2's server-side match pause command.", "Pause match")}><span><Pause size={18} /></span><strong>Pause match</strong><small>Server pause</small></button>
-          <button onClick={() => onNavigate("maps")}><span><MapIcon size={18} /></span><strong>Change map</strong><small>Open rotation</small></button>
+    <details className="session-controls">
+      <summary>Match controls <ChevronDown size={15} /></summary>
+      <div className="session-controls__body">
+        <div className="session-controls__buttons">
+          <button className="button button--secondary" onClick={() => onQuick("mp_restartgame 1", "Restart match", "The match will restart after one second and current round progress will reset.", "Restart match")}><RotateCcw size={15} />Restart match</button>
+          <button className="button button--secondary" onClick={() => onQuick("mp_warmup_end", "End warmup", "Warmup will end immediately and the configured match flow will continue.", "End warmup")}><Play size={15} />End warmup</button>
+          <button className="button button--secondary" onClick={() => onQuick("mp_pause_match", "Pause match", "The server will pause the match using CS2's match pause command.", "Pause match")}><Pause size={15} />Pause match</button>
+          <button className="button button--secondary" onClick={onMaps}><MapIcon size={15} />Change map</button>
         </div>
         <form className="broadcast-box" onSubmit={(event) => { event.preventDefault(); onBroadcast(); }}>
           <MessageSquare size={16} />
-          <input aria-label="Broadcast message" value={broadcast} onChange={(event) => setBroadcast(event.target.value)} placeholder="Broadcast a message to everyone…" maxLength={240} />
-          <button type="submit" disabled={!broadcast.trim()}><Send size={15} /><span>Send</span></button>
+          <input aria-label="Broadcast message" value={broadcast} onChange={(event) => setBroadcast(event.target.value)} placeholder="Send a message to all players" maxLength={240} />
+          <button type="submit" aria-label="Send broadcast" disabled={!broadcast.trim()}><Send size={15} /><span>Send</span></button>
         </form>
-      </section>
-
-      <section className="panel activity-panel">
-        <PanelHeading eyebrow="Local audit" title="Recent commands" action={<button className="text-button" onClick={() => onNavigate("console")}>Open console <ChevronRight size={14} /></button>} />
-        {history.length ? (
-          <div className="activity-list">
-            {history.slice(0, 5).map((entry) => (
-              <div key={entry.id}>
-                <span className={`activity-icon activity-icon--${entry.status}`}>{entry.status === "success" ? <Check size={14} /> : entry.status === "error" ? <X size={14} /> : <LoaderCircle size={14} className="spin" />}</span>
-                <span><code>{entry.command}</code><small>{formatClock(entry.timestamp)}{entry.durationMs ? ` · ${entry.durationMs} ms` : ""}</small></span>
-              </div>
-            ))}
-          </div>
-        ) : <InlineEmpty icon={Command} title="No commands yet" copy="Quick actions and console commands appear here." />}
-      </section>
-    </div>
-  );
-}
-
-function MetricCard({ icon: Icon, label, value, suffix, detail, tone, progress }: { icon: LucideIcon; label: string; value: string; suffix: string; detail: string; tone: string; progress?: number }) {
-  return (
-    <div className={`metric-card panel metric-card--${tone}`}>
-      <span className="metric-card__icon"><Icon size={18} /></span>
-      <p>{label}</p>
-      <div><strong>{value}</strong><span>{suffix}</span></div>
-      <small>{detail}</small>
-      {typeof progress === "number" && <div className="progress"><i style={{ width: `${progress}%` }} /></div>}
-    </div>
+      </div>
+    </details>
   );
 }
 
@@ -1138,9 +999,7 @@ function MapsView({ maps, total, currentMap, favorites, loading, search, setSear
   return (
     <div className="stack-lg">
       <section className="map-current panel">
-        <div className="map-current__art"><span /><i>/{currentMap.replace(/^(de|cs)_/, "")}</i></div>
         <div><p className="eyebrow">Now playing</p><h2>{currentMap}</h2><p><Radio size={14} />Active on the live server</p></div>
-        <div className="map-current__lines"><span /><span /><span /></div>
       </section>
       <section className="panel maps-panel">
         <div className="data-toolbar">
@@ -1149,14 +1008,13 @@ function MapsView({ maps, total, currentMap, favorites, loading, search, setSear
           <span className="record-count">{maps.length} of {total}</span>
           <button className="button button--secondary" onClick={onRefresh} disabled={loading}><RefreshCw size={15} className={loading ? "spin" : ""} />Sync server maps</button>
         </div>
-        <div className="map-grid">
-          {sorted.map((map, index) => {
+        <div className="map-grid map-list">
+          {sorted.map((map) => {
             const isCurrent = map.name === currentMap;
             const isFavorite = favorites.includes(map.name);
             const displayName = map.displayName ?? map.name;
             return (
-              <article className={`map-card map-card--${(index % 5) + 1} ${isCurrent ? "is-current" : ""}`} key={`${map.workshopId ?? "stock"}-${map.name}`}>
-                <div className="map-card__visual"><span>{displayName.replace(/^(de|cs|ar)_/, "").slice(0, 2).toUpperCase()}</span><i /><b /></div>
+              <article className={`map-card ${isCurrent ? "is-current" : ""}`} key={`${map.workshopId ?? "stock"}-${map.name}`}>
                 <div className="map-card__body">
                   <span className="map-card__category">{map.category}{map.workshopId ? ` · #${map.workshopId}` : ""}</span>
                   <button className={`favorite-button ${isFavorite ? "is-favorite" : ""}`} onClick={() => onFavorite(map.name)} aria-label={`${isFavorite ? "Remove" : "Add"} ${map.name} ${isFavorite ? "from" : "to"} favorites`}><Star size={15} fill={isFavorite ? "currentColor" : "none"} /></button>
@@ -1266,6 +1124,10 @@ interface ConsoleViewProps {
   completions: ConsoleCommandOption[];
   syncedCount: number;
   syncing: boolean;
+  snapshot: ServerSnapshot;
+  profile: ServerProfile;
+  latency: number | null;
+  demoMode: boolean;
   onSync: () => void;
   onSubmit: () => void;
   onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
@@ -1275,9 +1137,10 @@ interface ConsoleViewProps {
   endRef: React.RefObject<HTMLDivElement | null>;
 }
 
-function ConsoleView({ entries, input, setInput, busy, search, setSearch, commands, completions, syncedCount, syncing, onSync, onSubmit, onKeyDown, onUseCommand, onClear, onCopy, endRef }: ConsoleViewProps) {
+function ConsoleView({ entries, input, setInput, busy, search, setSearch, commands, completions, syncedCount, syncing, snapshot, profile, latency, demoMode, onSync, onSubmit, onKeyDown, onUseCommand, onClear, onCopy, endRef }: ConsoleViewProps) {
   const [completionIndex, setCompletionIndex] = useState(0);
   const [completionVisible, setCompletionVisible] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const activeCompletionIndex = completions.length ? Math.min(completionIndex, completions.length - 1) : 0;
   const showCompletions = completionVisible && completions.length > 0;
 
@@ -1291,6 +1154,12 @@ function ConsoleView({ entries, input, setInput, busy, search, setSearch, comman
     setInput(`${command.name} `);
     setCompletionIndex(0);
     setCompletionVisible(false);
+  };
+
+  const selectCommand = (command: string) => {
+    onUseCommand(command);
+    inputRef.current?.focus({ preventScroll: true });
+    inputRef.current?.scrollIntoView({ block: "nearest" });
   };
 
   const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -1319,18 +1188,23 @@ function ConsoleView({ entries, input, setInput, busy, search, setSearch, comman
 
   return (
     <div className="console-layout">
-      <section className="terminal panel">
+      <section className="terminal terminal-panel panel" aria-label="Server console">
         <div className="terminal__header">
-          <div className="terminal__dots"><i /><i /><i /></div>
-          <span><SquareTerminal size={15} />Server console</span>
+          <div className="terminal__dots" aria-hidden="true"><i /><i /><i /></div>
+          <span className="terminal__host">{profile.host}:{profile.port}</span>
           <button onClick={onClear} disabled={!entries.length}><Trash2 size={14} />Clear</button>
         </div>
-        <div className="terminal__body">
+        <div className="terminal-status">
+          <span><MapIcon size={13} />{snapshot.map}</span>
+          <span><Users size={13} />{snapshot.humans + snapshot.bots}{snapshot.maxPlayers ? ` / ${snapshot.maxPlayers}` : ""} players</span>
+          <span>{latency !== null ? `${latency} ms` : "Awaiting response"}</span>
+          {demoMode && <span className="terminal-status__demo">Sample server</span>}
+        </div>
+        <div className="terminal__body" role="log" aria-label="Console output" aria-live="polite" aria-relevant="additions text">
           {!entries.length && (
             <div className="terminal-welcome">
-              <RelayLogo compact />
-              <p>Authenticated console ready.</p>
-              <span>Run any vanilla, ConVar, CounterStrikeSharp, or plugin command.</span>
+              <p>{demoMode ? "Demo console ready." : "Connected. Your console is ready."}</p>
+              <span>Enter a command below. Try <button type="button" onClick={() => selectCommand("status")}>status</button> to inspect the server.</span>
             </div>
           )}
           {[...entries].reverse().map((entry) => (
@@ -1364,24 +1238,25 @@ function ConsoleView({ entries, input, setInput, busy, search, setSearch, comman
               ))}
             </div>
           )}
-          <span>rcon</span><b>›</b><input role="combobox" autoComplete="off" spellCheck={false} value={input} onChange={(event) => updateInput(event.target.value)} onKeyDown={handleInputKeyDown} onFocus={() => setCompletionVisible(true)} onBlur={() => setCompletionVisible(false)} placeholder="Type a command…" aria-label="RCON command" aria-autocomplete="list" aria-haspopup="listbox" aria-controls="rcon-command-completions" aria-expanded={showCompletions} aria-activedescendant={showCompletions ? `rcon-completion-${activeCompletionIndex}` : undefined} /><button type="submit" disabled={!input.trim() || busy}>{busy ? <LoaderCircle size={16} className="spin" /> : <Send size={16} />}<span>Execute</span></button>
+          <span>rcon</span><b>›</b><input ref={inputRef} role="combobox" autoComplete="off" spellCheck={false} value={input} onChange={(event) => updateInput(event.target.value)} onKeyDown={handleInputKeyDown} onFocus={() => setCompletionVisible(true)} onBlur={() => setCompletionVisible(false)} placeholder="Type a command…" aria-label="RCON command" aria-autocomplete="list" aria-haspopup="listbox" aria-controls="rcon-command-completions" aria-expanded={showCompletions} aria-activedescendant={showCompletions ? `rcon-completion-${activeCompletionIndex}` : undefined} /><button type="submit" aria-label="Execute" disabled={!input.trim() || busy}>{busy ? <LoaderCircle size={16} className="spin" /> : <Send size={16} />}<span>Execute</span></button>
         </form>
+        <div className="terminal-hints"><span><kbd>↑</kbd><kbd>↓</kbd> command history</span><span><kbd>Tab</kbd> autocomplete</span><span>{demoMode ? "Demo responses" : "RCON over TCP"}</span></div>
       </section>
 
-      <aside className="command-browser panel">
-        <div className="command-browser__head"><div><p className="eyebrow">Reference</p><h2>Commands</h2></div><span>{syncedCount ? `${syncedCount.toLocaleString()} synced` : "Built-ins"}</span></div>
+      <details className="command-browser command-reference">
+        <summary className="command-browser__head"><h2>Command reference</h2><span>{syncedCount ? `${syncedCount.toLocaleString()} synced` : "Built-in commands"}</span><ChevronDown size={15} /></summary>
         <div className="search-field search-field--compact"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} aria-label="Search commands" placeholder="Search commands" /></div>
         <button className="sync-card" onClick={onSync} disabled={syncing}><span><RefreshCw size={16} className={syncing ? "spin" : ""} /></span><span><strong>{syncedCount ? "Resync server catalogue" : "Sync every server command"}</strong><small>Runs cvarlist and saves results locally</small></span><ChevronRight size={15} /></button>
         <div className="command-list">
           {commands.map((command) => (
-            <button key={command.name} onClick={() => onUseCommand(command.syntax)}>
+            <button key={command.name} onClick={() => selectCommand(command.syntax)}>
               <span><code>{command.name}</code><em>{command.meta}</em></span>
               <small>{command.description}</small>
             </button>
           ))}
           {!commands.length && <InlineEmpty icon={Command} title="No commands found" copy="Try a broader search." />}
         </div>
-      </aside>
+      </details>
     </div>
   );
 }

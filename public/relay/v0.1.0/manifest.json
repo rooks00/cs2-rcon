@@ -1,0 +1,48 @@
+{
+  "version": "0.1.0",
+  "toolchain": "go version go1.27.1 linux/amd64",
+  "artifacts": [
+    {
+      "target": "linux-amd64",
+      "file": "relay-helper-linux-amd64.gz",
+      "sha256": "67f909b54a6b38f715ef4d837711649c2fb5b408f4a19a2bbe6cbc1fc1d0fdef",
+      "downloadBytes": 4072381,
+      "executableBytes": 9896096
+    },
+    {
+      "target": "linux-arm64",
+      "file": "relay-helper-linux-arm64.gz",
+      "sha256": "3159a14fec84850c29a13b56821148a2031762b6be862aaf1c62f97da2c69081",
+      "downloadBytes": 3683272,
+      "executableBytes": 9240736
+    },
+    {
+      "target": "darwin-amd64",
+      "file": "relay-helper-darwin-amd64.gz",
+      "sha256": "7917c7ee7ac25ce0d0a0ca57188689cc1d043b844d097d631443cddddc17565a",
+      "downloadBytes": 4140218,
+      "executableBytes": 10108384
+    },
+    {
+      "target": "darwin-arm64",
+      "file": "relay-helper-darwin-arm64.gz",
+      "sha256": "e4d0f8d90a3d28ab098e2d1069b9bcc11506b5065f91ce4ed039c61fb5186654",
+      "downloadBytes": 3819490,
+      "executableBytes": 9431570
+    },
+    {
+      "target": "windows-amd64",
+      "file": "relay-helper-windows-amd64.exe.gz",
+      "sha256": "fc28edd157178ec133baa5af4da65d8c86cb2033fac4b0f84207b6694dbf99fd",
+      "downloadBytes": 4189100,
+      "executableBytes": 10197504
+    },
+    {
+      "target": "windows-arm64",
+      "file": "relay-helper-windows-arm64.exe.gz",
+      "sha256": "99ee007436c3bb7ff4f58e3a1f418893e05f7e6df35287486f0f6080ecf58cde",
+      "downloadBytes": 3741802,
+      "executableBytes": 9306112
+    }
+  ]
+}

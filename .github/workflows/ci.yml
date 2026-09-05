@@ -24,3 +24,19 @@ jobs:
       - run: npm run build
       - name: Verify the adapter build used by hosted platforms
         run: NEXT_ADAPTER_PATH="$PWD/scripts/adapter-smoke.mjs" VERCEL=1 npm run build
+
+  helper:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.1'
+          cache: false
+      - name: Test the native helper
+        working-directory: helper
+        run: go test -race ./...

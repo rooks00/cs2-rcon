@@ -4,6 +4,8 @@ import { ArrowRight, Braces, Check, ChevronRight, Eye, EyeOff, FileJson, Globe2,
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { EXAMPLE_CONNECTION_JSON, parseConnectionJson, parseServerAddress, type ConnectionDetails } from "@/lib/connection-import";
 import type { ServerProfile } from "@/lib/types";
+import { HelperLauncher } from "@/components/helper-launcher";
+import { getKnownLocalHelper, helperWebsiteOrigin, rememberLocalHelper, type LocalHelperMetadata } from "@/lib/helper-install";
 
 export interface ConnectionInput extends ConnectionDetails {
   id?: string;
@@ -35,12 +37,23 @@ export function ConnectionPanel({ profiles, activeProfile, secrets, busy, onSave
   const [error, setError] = useState("");
   const [importNote, setImportNote] = useState("");
   const [requiresKey, setRequiresKey] = useState(false);
+  const [showHelper, setShowHelper] = useState(false);
+  const [localHelper, setLocalHelper] = useState<LocalHelperMetadata | null>(getKnownLocalHelper);
+  const [helperUnavailable, setHelperUnavailable] = useState(false);
   const hostRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const controller = new AbortController();
     fetch("/api/rcon", { cache: "no-store", signal: controller.signal }).then((response) => response.json())
-      .then((value) => setRequiresKey(value.requiresAccessKey === true)).catch(() => undefined);
+      .then((value) => {
+        setRequiresKey(value.requiresAccessKey === true);
+        const site = helperWebsiteOrigin(value.hostedSite);
+        if (value.transport === "local-tcp" && site) {
+          const helper = { site, version: String(value.helperVersion ?? "") };
+          rememberLocalHelper(helper);
+          setLocalHelper(helper);
+        } else if (getKnownLocalHelper()) setHelperUnavailable(true);
+      }).catch(() => { if (!controller.signal.aborted && getKnownLocalHelper()) setHelperUnavailable(true); });
     return () => controller.abort();
   }, []);
 
@@ -86,7 +99,13 @@ export function ConnectionPanel({ profiles, activeProfile, secrets, busy, onSave
 
   return (
     <div className="connection-panel">
-      <div className="connection-panel__title"><span><Server size={19} /></span><div><h2>Connect a server</h2><p>Your next match starts here.</p></div></div>
+      <div className="connection-panel__title"><span><Server size={19} /></span><div><h2>Connect a server</h2></div></div>
+      <div className={`connection-method ${localHelper ? "connection-method--local" : ""}`}>
+        <span>{localHelper ? <Check size={13} /> : <Globe2 size={13} />}{localHelper ? (helperUnavailable ? "Local helper unavailable" : "Local helper connected") : "Hosted connection"}</span>
+        {localHelper ? <a href={localHelper.site} target="_blank" rel="noreferrer">Open hosted site</a> : <button type="button" disabled={busy} onClick={() => setShowHelper((value) => !value)}>{showHelper ? "Back to connection" : "Use this device"}</button>}
+      </div>
+      {showHelper && !localHelper ? <HelperLauncher onBack={() => setShowHelper(false)} /> : <>
+      {helperUnavailable && <p className="connection-error" role="status">Restart the helper in your terminal, or use “Open hosted site” to connect through the website.</p>}
       <div className="connection-tabs" role="tablist" aria-label="Enter connection details">
         <button type="button" id="details-tab" role="tab" aria-selected={tab === "details"} aria-controls="connection-fields" className={tab === "details" ? "is-active" : ""} onClick={() => { setTab("details"); setError(""); }} disabled={busy}><Server size={14} />Server details</button>
         <button type="button" id="json-tab" role="tab" aria-selected={tab === "json"} aria-controls="connection-fields" className={tab === "json" ? "is-active" : ""} onClick={() => { setTab("json"); setError(""); }} disabled={busy}><Braces size={15} />Paste JSON</button>
@@ -100,7 +119,7 @@ export function ConnectionPanel({ profiles, activeProfile, secrets, busy, onSave
               <label className="field field--port"><span>Port</span><div><input type="number" min={1} max={65535} step={1} value={port} onChange={(event) => setPort(event.target.value)} required /></div></label>
             </div>
             <label className="field"><span>RCON password</span><div><KeyRound size={16} /><input type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Your server’s RCON password" autoComplete="off" required /><button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button></div></label>
-            <label className="field"><span>Profile name <em>Optional</em></span><div><input value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Friday night competitive" maxLength={60} /></div></label>
+            <label className="field"><span>Profile name <em>Optional</em></span><div><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Match server" maxLength={60} /></div></label>
             {requiresKey && <label className="field"><span>Installation access key</span><div><LockKeyhole size={16} /><input type="password" value={relayKey} onChange={(event) => setRelayKey(event.target.value)} required /></div><small>This installation is private. Its owner can provide the key.</small></label>}
             <label className="remember-field"><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} /><span>Remember password on this device</span></label>
             {remember && <p className="field-hint">Saved in this browser without encryption. Use a trusted device.</p>}
@@ -115,9 +134,10 @@ export function ConnectionPanel({ profiles, activeProfile, secrets, busy, onSave
           <button className="button button--primary button--large connect-submit" type="submit" disabled={busy}>{busy ? <><LoaderCircle size={17} className="spin" />Connecting to server…</> : <><span>{tab === "json" ? "Review connection" : "Connect server"}</span>{tab === "json" ? <FileJson size={17} /> : <ArrowRight size={18} />}</>}</button>
         </fieldset>
       </form>
-      <p className="connection-privacy"><ShieldCheck size={14} /><span>Used by this app to connect. Saved only if you choose.</span></p>
+      <p className="connection-privacy"><ShieldCheck size={14} /><span>{localHelper ? "RCON connects from this computer. Saved only if you choose." : "Used by this app to connect. Saved only if you choose."}</span></p>
       <div className="connection-demo"><span>Just looking around?</span><button className="text-button" onClick={onDemo} disabled={busy}><Sparkles size={14} />Explore demo<ArrowRight size={14} /></button></div>
-      <details className="connection-help"><summary>Need help connecting?<Plus size={14} /></summary><p>Use the server’s TCP RCON address and <code>rcon_password</code>. Enable RCON on the game server and allow this app’s host through its firewall. For a LAN server, run Relay on that network.</p><p>Your password passes through the app’s host. Source RCON does not encrypt the final TCP connection; use a trusted host or private network.</p><a href="/connection-guide" target="_blank" rel="noreferrer">Connection guide and hosting options<ArrowRight size={13} /></a></details>
+      <details className="connection-help"><summary>Need help connecting?<Plus size={14} /></summary><p>Use the server’s TCP RCON address and <code>rcon_password</code>. Enable RCON on the game server and allow {localHelper ? "this computer" : "this app’s host"} through its firewall. {localHelper ? "The local helper can reach servers on your LAN or VPN." : "For a LAN server, choose “Use this device” to start the lightweight helper."}</p><p>{localHelper ? "Your password and commands stay on the local RCON path." : "Your password passes through the app’s host."} Source RCON does not encrypt the final TCP connection; use a trusted host or private network.</p><a href="/connection-guide" target="_blank" rel="noreferrer">Connection guide and hosting options<ArrowRight size={13} /></a></details>
+      </>}
     </div>
   );
 }

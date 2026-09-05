@@ -9,10 +9,11 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "helper:build": "node scripts/build-helper.mjs",
+    "helper:test": "cd helper && go test -race ./..."
   },
   "dependencies": {
-    "@fontsource/barlow": "^5.2.8",
     "lucide-react": "1.37.0",
     "next": "16.3.3",
     "react": "19.2.8",

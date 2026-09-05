@@ -2,33 +2,37 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 
-const barlow = localFont({
-  src: [
-    { path: "../node_modules/@fontsource/barlow/files/barlow-latin-400-normal.woff2", weight: "400" },
-    { path: "../node_modules/@fontsource/barlow/files/barlow-latin-500-normal.woff2", weight: "500" },
-    { path: "../node_modules/@fontsource/barlow/files/barlow-latin-600-normal.woff2", weight: "600" },
-    { path: "../node_modules/@fontsource/barlow/files/barlow-latin-700-normal.woff2", weight: "700" },
-  ],
-  variable: "--font-barlow",
+const sans = localFont({
+  src: "../public/fonts/dm-sans-latin-variable.woff2",
+  weight: "100 1000",
+  variable: "--font-sans",
   display: "swap",
 });
 
+const mono = localFont({
+  src: "../public/fonts/fragment-mono-latin.woff2",
+  weight: "400",
+  variable: "--font-mono",
+  display: "swap",
+  preload: false,
+});
+
 export const metadata: Metadata = {
-  title: "Relay — CS2 server control",
-  description: "A local-first control surface for Counter-Strike 2 RCON servers.",
+  title: "Relay | CS2 server console",
+  description: "Connect to your Counter-Strike 2 server. Run RCON commands, manage players, and change maps in one workspace.",
   applicationName: "Relay",
 };
 
 export const viewport: Viewport = {
   colorScheme: "dark",
-  themeColor: "#111315",
+  themeColor: "#101d30",
   width: "device-width",
   initialScale: 1,
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={barlow.variable}>
+    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
       <body>{children}</body>
     </html>
   );

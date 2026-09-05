@@ -4,7 +4,15 @@ A self-contained CS2 RCON workspace. Open it, enter a server address, TCP port a
 
 **No account, database, separate worker, or deployment access key is required.** Relay's own Node server handles TCP. It runs locally, in Docker, or on a Node-compatible host; Vercel is optional.
 
-## Start
+## For server owners
+
+The website uses the hosted `/api/rcon` route by default, including on Vercel. Visitors do **not** need to run Docker or install this webapp.
+
+For a LAN/VPN server or a blocked hosted connection, select **Use this device** in the connection form. Copy the one-line Terminal or PowerShell command. It downloads a roughly 4 MB native helper, opens this same workspace on your computer, and stays active only while the command runs. No Node.js, Python, Docker, admin rights, manually configured relay key, or background service is required. Press **Ctrl+C** to stop.
+
+The helper uses a temporary directory, validates the download checksum, and pairs the browser automatically with a one-time local link. RCON runs on your computer; the website supplies only the interface/assets and optional Workshop titles. The hosted connection remains available through **Open hosted site**. See [the helper guide](helper/README.md).
+
+## Run the website yourself
 
 ```bash
 npm ci
@@ -84,6 +92,8 @@ HTTPS protects browser → Relay. Source RCON does **not** encrypt Relay → gam
 
 ### LAN and local servers
 
+For end users, the native helper reaches local and VPN servers without these deployment settings. The settings below apply only when self-hosting the full website.
+
 Development permits RFC1918 and loopback destinations by default. Production blocks them unless both of these are explicitly configured:
 
 ```dotenv
@@ -95,9 +105,11 @@ The allowlist must contain the exact host entered by the user; wildcard entries 
 
 ## Features
 
-- A redesigned responsive workspace with locally served typography and an original 3D map illustration
+- A restrained, responsive console workspace with locally served typography and a translucent terminal
+- RCON prompt and live output on the main page immediately after connecting
 - Multiple browser-local server profiles; passwords held in memory by default
 - Inline connection validation and actionable errors, password visibility, JSON import and profile selection
+- Portable foreground helper for Windows/macOS/Linux, with deployment-specific one-line launch commands
 - Players, kick/Steam-ID ban actions, Steam/IP filters, individual and bulk unban
 - Installed maps from `maps *` plus `ds_workshop_listmaps`, favorites, Steam Workshop title lookup and map loading
 - Game-mode staging using `game_type` / `game_mode`, with an explicit map transition
@@ -141,4 +153,4 @@ npm test
 npm run build
 ```
 
-Tests include actual TCP packet framing, authentication, response assembly, keyless production requests, optional access control, cancellation, JSON imports, DNS/private-target checks, payload limits, and rate/concurrency guards. The local TCP fixture validates the protocol path; real-server and host-specific reachability still require a configured CS2 endpoint.
+Tests include actual TCP packet framing, authentication, response assembly, keyless production requests, optional access control, cancellation, JSON imports, DNS/private-target checks, payload limits, and rate/concurrency guards. CI also exercises the Next.js adapter path used by Vercel, and native helper tests on Linux, macOS and Windows. Developers can run `npm run helper:test` with Go installed; end users never need Go. The local TCP fixture validates the protocol path; real-server and host-specific reachability still require a configured CS2 endpoint.

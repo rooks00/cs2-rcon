@@ -1,5 +1,5 @@
 // Exercise Next's actual adapter build path, which VERCEL=1 alone does not enable.
-export default {
+const adapter = {
   name: "relay-adapter-ci",
   async onBuildComplete({ config, outputs }) {
     if (config.output === "standalone") throw new Error("Adapter builds must not request standalone output.");
@@ -7,3 +7,5 @@ export default {
     console.log("Verified adapter output includes the hosted RCON route.");
   },
 };
+
+export default adapter;

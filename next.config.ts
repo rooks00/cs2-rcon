@@ -29,7 +29,16 @@ const nextConfig: NextConfig = {
   output: process.env.RELAY_STANDALONE === "1" ? "standalone" : undefined,
   poweredByHeader: false,
   async headers() {
-    return [{ source: "/(.*)", headers: securityHeaders }];
+    return [
+      { source: "/(.*)", headers: securityHeaders },
+      ...["/relay/install.sh", "/relay/install.ps1"].map((source) => ({
+        source,
+        headers: [
+          { key: "Content-Type", value: "text/plain; charset=utf-8" },
+          { key: "Cache-Control", value: "no-store" },
+        ],
+      })),
+    ];
   },
 };
 
