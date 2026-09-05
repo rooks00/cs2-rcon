@@ -16,6 +16,7 @@ export type RconErrorCode =
   | "RESPONSE_TIMEOUT"
   | "CONNECTION_CLOSED"
   | "INVALID_PACKET"
+  | "REQUEST_TIMEOUT"
   | "COMMAND_TOO_LONG";
 
 export class RconError extends Error {
@@ -39,6 +40,7 @@ export interface RconTarget {
   port: number;
   password: string;
   timeoutMs: number;
+  signal?: AbortSignal;
 }
 
 export interface ExecutedCommand {
@@ -109,10 +111,17 @@ class RconSession {
   private waiter: PacketWaiter | null = null;
   private terminalError: Error | null = null;
   private requestId = Math.floor(Math.random() * 1_000_000) + 100;
+  private receivedBytes = 0;
+  private readonly abort = () => {
+    this.onTerminalError(new RconError("REQUEST_TIMEOUT", "The connection request timed out or was cancelled."));
+    this.socket?.destroy();
+  };
 
   constructor(private readonly target: RconTarget) {}
 
   async connect(): Promise<void> {
+    if (this.target.signal?.aborted) throw new RconError("REQUEST_TIMEOUT", "The connection request was cancelled.");
+    this.target.signal?.addEventListener("abort", this.abort, { once: true });
     await new Promise<void>((resolve, reject) => {
       let settled = false;
       const socket = createConnection({ host: this.target.host, port: this.target.port });
@@ -139,6 +148,11 @@ class RconSession {
       });
       socket.on("close", () => {
         this.onTerminalError(new RconError("CONNECTION_CLOSED", "The game server closed the RCON connection."));
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          reject(this.terminalError);
+        }
       });
       socket.once("connect", () => {
         if (settled) return;
@@ -236,6 +250,7 @@ class RconSession {
   }
 
   close(): void {
+    this.target.signal?.removeEventListener("abort", this.abort);
     this.socket?.destroy();
     this.socket = null;
   }
@@ -274,6 +289,10 @@ class RconSession {
 
   private onData(chunk: Buffer): void {
     try {
+      this.receivedBytes += chunk.length;
+      if (this.receivedBytes > 4_000_000 || this.queue.length > 4_096) {
+        throw new RconError("INVALID_PACKET", "The server exceeded the session response limit.");
+      }
       this.queue.push(...this.decoder.feed(chunk));
       this.pumpQueue();
     } catch (error) {
@@ -318,7 +337,7 @@ function friendlySocketError(error: Error & { code?: string }): string {
       return "Connection refused. Confirm the TCP RCON port and the server's -usercon setting.";
     case "EHOSTUNREACH":
     case "ENETUNREACH":
-      return "The game server is not reachable from the relay.";
+      return "The game server is not reachable from this app's host.";
     case "ENOTFOUND":
       return "The server hostname could not be resolved.";
     case "ETIMEDOUT":

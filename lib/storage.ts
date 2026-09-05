@@ -36,9 +36,14 @@ export function loadStoredState(): StoredState {
   }
 }
 
-export function saveStoredState(state: StoredState): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+export function saveStoredState(state: StoredState): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function exportStoredState(state: StoredState): string {

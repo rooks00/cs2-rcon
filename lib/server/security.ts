@@ -20,14 +20,18 @@ export function relaySecretMatches(provided: string, expected: string): boolean 
 }
 
 export function isSameOriginRequest(request: Request): boolean {
+  if (request.headers.get("sec-fetch-site") === "cross-site") return false;
   const origin = request.headers.get("origin");
   if (!origin) return true;
   try {
-    const originHost = new URL(origin).host.toLowerCase();
-    const requestHosts = [request.headers.get("host"), request.headers.get("x-forwarded-host")]
-      .filter(Boolean)
-      .map((host) => host!.split(",")[0].trim().toLowerCase());
-    return requestHosts.includes(originHost);
+    // Next may rewrite request.url to the internal listening address. Browsers
+    // cannot forge Host, so preserve its external authority (including the port).
+    // Do not accept x-forwarded-host; TLS proxies can set an explicit public origin.
+    const url = new URL(request.url);
+    const authority = request.headers.get("host") || url.host;
+    if (/[\s/@?#\\,]/.test(authority)) return false;
+    const expectedOrigin = process.env.RCON_PUBLIC_ORIGIN || `${url.protocol}//${authority}`;
+    return new URL(origin).origin === new URL(expectedOrigin).origin;
   } catch {
     return false;
   }
@@ -54,8 +58,11 @@ export async function resolvePublicRconHost(hostInput: string): Promise<{ addres
   if (!addresses.length) throw new TargetValidationError("DNS_FAILED", "The RCON hostname did not resolve to an address.");
 
   const allowPrivateInDevelopment = process.env.NODE_ENV !== "production" && process.env.RCON_ALLOW_PRIVATE_DEV !== "false";
-  if (!allowPrivateInDevelopment && addresses.some(({ address, family }) => !isPublicAddress(address, family))) {
-    throw new TargetValidationError("HOST_BLOCKED", "Private, loopback, link-local, and reserved RCON targets are blocked on the hosted relay.");
+  const explicitlyAllowed = process.env.RCON_ALLOW_PRIVATE === "true" &&
+    process.env.RCON_ALLOWED_HOSTS?.split(",").some((item) => item.trim().toLowerCase() === hostname);
+  if (addresses.some(({ address, family }) => !isPublicAddress(address, family) &&
+    !((allowPrivateInDevelopment || explicitlyAllowed) && isLocalAddress(address, family)))) {
+    throw new TargetValidationError("HOST_BLOCKED", "This address is not reachable through a public connection. For LAN servers, run Relay on your network and explicitly allow the server in its configuration.");
   }
 
   const selected = addresses[0];
@@ -92,7 +99,10 @@ export function isPublicAddress(address: string, family: number): boolean {
 
   // Public IPv6 global unicast is currently allocated from 2000::/3.
   if (groups[0] < 0x2000 || groups[0] > 0x3fff) return false;
-  if (groups[0] === 0x2001 && groups[1] === 0x0db8) return false;
+  // Reject transition/special-use ranges (including Teredo, 6to4, ORCHID,
+  // benchmarking and documentation), which can tunnel non-public IPv4.
+  if (groups[0] === 0x2001 && (groups[1] <= 0x01ff || groups[1] === 0x0db8)) return false;
+  if (groups[0] === 0x2002 || (groups[0] === 0x3fff && groups[1] <= 0x0fff)) return false;
   return true;
 }
 
@@ -106,9 +116,23 @@ function isPublicIpv4(address: string): boolean {
   if (a === 172 && b >= 16 && b <= 31) return false;
   if (a === 192 && b === 168) return false;
   if (a === 192 && b === 0 && (c === 0 || c === 2)) return false;
+  if (a === 192 && b === 88 && c === 99) return false;
   if (a === 198 && (b === 18 || b === 19 || (b === 51 && c === 100))) return false;
   if (a === 203 && b === 0 && c === 113) return false;
   return true;
+}
+
+function isLocalAddress(address: string, family: number): boolean {
+  if (family === 4) {
+    const [a, b] = address.split(".").map(Number);
+    return a === 127 || a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+  }
+  const groups = expandIpv6(address);
+  if (!groups) return false;
+  if (groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff) {
+    return isLocalAddress(`${groups[6] >> 8}.${groups[6] & 255}.${groups[7] >> 8}.${groups[7] & 255}`, 4);
+  }
+  return (groups[0] & 0xfe00) === 0xfc00 || (groups.slice(0, 7).every((group) => group === 0) && groups[7] === 1);
 }
 
 function expandIpv6(address: string): number[] | null {

@@ -1,0 +1,13 @@
+services:
+  relay:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      RCON_PUBLIC_ORIGIN: ${RCON_PUBLIC_ORIGIN:-}
+      RCON_ALLOWED_HOSTS: ${RCON_ALLOWED_HOSTS:-}
+      RCON_ALLOWED_PORTS: ${RCON_ALLOWED_PORTS:-}
+      RCON_ALLOW_PRIVATE: ${RCON_ALLOW_PRIVATE:-false}
+      RCON_TIMEOUT_MS: ${RCON_TIMEOUT_MS:-6000}
+      RCON_RELAY_SECRET: ${RCON_RELAY_SECRET:-}
