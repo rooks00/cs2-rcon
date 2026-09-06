@@ -14,6 +14,9 @@ function motionPreference() { return window.matchMedia(REDUCED_MOTION).matches; 
 
 type SceneState = {
   time: number;
+  performanceTime: number;
+  lastReplay: number;
+  replayQueued: boolean;
   yaw: number;
   pitch: number;
   detailVisibility: number;
@@ -25,12 +28,35 @@ const MotionContext = createContext<{
   moving: boolean;
   reducedMotion: boolean;
   toggle: () => void;
-  registerStage: (element: HTMLDivElement | null) => void;
+  replay: () => void;
+  registerStage: (element: HTMLElement | null) => void;
 } | null>(null);
 
 export function ArtworkStage() {
   const motion = useContext(MotionContext);
-  return <div className="connection-artwork-stage" ref={motion?.registerStage} aria-hidden="true" />;
+  return <button type="button" className="connection-artwork-stage" ref={motion?.registerStage} onClick={motion?.replay} disabled={!motion?.moving} aria-label="Replay Tasheer shot and spin" title={motion?.moving ? "Replay Tasheer animation" : undefined} />;
+}
+
+const TURN = Math.PI * 2;
+const PERFORMANCE_SECONDS = 8.4;
+const SHOT_AT = .85;
+const clamp = (value: number) => Math.max(0, Math.min(1, value));
+
+function tasheerPose(time: number, enabled: boolean) {
+  if (!enabled) return { turn: 0, lift: 0, lean: 0, shotAge: -1, flash: 0 };
+  const phase = time % PERFORMANCE_SECONDS;
+  const shotAge = phase - SHOT_AT;
+  const progress = clamp((phase - 1.08) / 3.15);
+  const eased = progress * progress * progress * (progress * (progress * 6 - 15) + 10);
+  const recoil = shotAge >= 0 ? Math.sin(clamp(shotAge / .09) * Math.PI / 2) * Math.exp(-shotAge * 10) * .065 : 0;
+  return {
+    turn: eased * TURN,
+    lift: Math.sin(progress * Math.PI) * .085 + recoil,
+    lean: Math.sin(eased * TURN) * .025 + recoil * .22,
+    shotAge,
+    // One short, local flash per performance; no repeating strobe.
+    flash: shotAge >= 0 && shotAge < .18 ? Math.sin(clamp(shotAge / .025) * Math.PI / 2) * (1 - shotAge / .18) ** 2 : 0,
+  };
 }
 
 export function ArtworkMotionControl() {
@@ -46,13 +72,15 @@ export function ArtworkMotionControl() {
 export function AmbientArtwork({ subdued = false, children }: { subdued?: boolean; children: ReactNode }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const detailImageRef = useRef<HTMLImageElement | null>(null);
-  const stageRef = useRef<HTMLDivElement | null>(null);
+  const stageRef = useRef<HTMLElement | null>(null);
   const stageChangedRef = useRef<(() => void) | null>(null);
-  const sceneRef = useRef<SceneState>({ time: 0, yaw: .06, pitch: .04, detailVisibility: 1, particles: [], displacement: new Float32Array(0) });
+  const replayRef = useRef<(() => void) | null>(null);
+  const sceneRef = useRef<SceneState>({ time: 0, performanceTime: 0, lastReplay: -10, replayQueued: false, yaw: .06, pitch: .04, detailVisibility: 1, particles: [], displacement: new Float32Array(0) });
   const [paused, setPaused] = useState(false);
   const reducedMotion = useSyncExternalStore(subscribeMotion, motionPreference, () => true);
   const moving = !paused && !reducedMotion;
-  const registerStage = useCallback((element: HTMLDivElement | null) => {
+  const replay = useCallback(() => replayRef.current?.(), []);
+  const registerStage = useCallback((element: HTMLElement | null) => {
     stageRef.current = element;
     stageChangedRef.current?.();
   }, []);
@@ -140,24 +168,40 @@ export function AmbientArtwork({ subdued = false, children }: { subdued?: boolea
       const stage = !subdued ? stageBounds : null;
       if (stage && (stage.top - scrollY >= height || stage.top - scrollY + stage.height <= 0)) return;
       const centerX = stage ? stage.left - scrollX + stage.width * .5 : width * .32;
-      const centerY = stage ? stage.top - scrollY + stage.height * .5 : height * .25;
-      const scale = stage ? Math.min(stage.height / 2.18, stage.width / 1.5, 290) : Math.min(width * .115, 158, height * .20);
+      const centerY = stage ? stage.top - scrollY + stage.height * .47 : height * .25;
+      // Leave an interior floor below the muzzle and headroom for the lift.
+      const scale = stage ? Math.min(stage.height / 2.5, stage.width / 1.5, 290) : Math.min(width * .115, 158, height * .20);
       if (stage) {
         ctx.save();
         ctx.beginPath();
         ctx.rect(stage.left - scrollX, stage.top - scrollY, stage.width, stage.height);
         ctx.clip();
       }
-      const yaw = scene.yaw + Math.sin(time * .13) * .012;
+      if (moving && stage) {
+        scene.performanceTime += dt;
+        if (scene.replayQueued && scene.performanceTime % PERFORMANCE_SECONDS >= 4.5) {
+          scene.performanceTime = SHOT_AT - .18;
+          scene.replayQueued = false;
+        }
+      }
+      const pose = tasheerPose(scene.performanceTime, Boolean(stage) && !reducedMotion);
+      const yaw = scene.yaw + Math.sin(time * .13) * .012 + pose.turn;
       const pitch = scene.pitch + Math.sin(time * .18) * .007;
-      const roll = Math.sin(time * .11) * .006;
+      const roll = Math.sin(time * .11) * .006 + pose.lean;
       const cosY = Math.cos(yaw), sinY = Math.sin(yaw);
       const cosP = Math.cos(pitch), sinP = Math.sin(pitch);
       const cosR = Math.cos(roll), sinR = Math.sin(roll);
       const pointerActive = moving && performance.now() < pointerUntil;
       const positions = scene.displacement;
       const intensity = subdued ? .20 : width < 760 ? .88 : 1;
-      const bob = Math.sin(time * .24) * 2.5;
+      const bob = Math.sin(time * .24) * 2.5 - pose.lift * scale;
+      const turnVolume = Math.sin(pose.turn) ** 2;
+      const project = (x: number, y: number, z = 0) => {
+        const rx = x * cosY + z * sinY;
+        const rz = -x * sinY + z * cosY;
+        const ry = y * cosP - rz * sinP;
+        return { x: centerX + (rx * cosR - ry * sinR) * scale, y: centerY - (rx * sinR + ry * cosR) * scale + bob };
+      };
       if (stage && detailImage.complete && detailImage.naturalWidth) {
         const source = TASHEER_SOURCE;
         const portraitWidth = (source.right - source.left) * source.scale * scale;
@@ -176,7 +220,7 @@ export function AmbientArtwork({ subdued = false, children }: { subdued?: boolea
         const sourceCenterY = (source.top + source.bottom) * .5;
         ctx.save();
         ctx.globalCompositeOperation = "screen";
-        ctx.globalAlpha = (.045 + scene.detailVisibility * .165) * intensity;
+        ctx.globalAlpha = (.045 + scene.detailVisibility * .165) * Math.max(0, Math.cos(pose.turn)) ** 4 * intensity;
         ctx.imageSmoothingQuality = "high";
         ctx.transform(a, b, c, d, centerX - a * sourceCenterX - c * sourceCenterY, centerY + bob - b * sourceCenterX - d * sourceCenterY);
         ctx.drawImage(detailImage, 0, 0, source.width, source.height);
@@ -185,7 +229,9 @@ export function AmbientArtwork({ subdued = false, children }: { subdued?: boolea
       for (let index = 0; index < scene.particles.length; index++) {
         const p = scene.particles[index];
         const drift = Math.sin(time * .9 + p.phase * .1) * p.flex * .012;
-        const x = p.x, y = p.y + drift, z = p.z;
+        // Give the cloth a little volume through the side views. Keep the
+        // slender rifle intact and the original sampled detail at rest.
+        const x = p.x, y = p.y + drift, z = p.z + Math.sin(p.phase) * turnVolume * p.turnDepth;
         const rx = x * cosY + z * sinY;
         const rz = -x * sinY + z * cosY;
         const ry = y * cosP - rz * sinP;
@@ -222,6 +268,80 @@ export function AmbientArtwork({ subdued = false, children }: { subdued?: boolea
         const size = Math.max(.55, p.size * depthScale * (width < 760 ? .85 : 1));
         ctx.fillStyle = pointColors[Math.min(127, Math.round(alpha * 127))];
         ctx.fillRect(px + positions[offset], py + positions[offset + 1], size, size);
+      }
+      if (stage && pose.shotAge >= 0 && pose.shotAge < 1.65) {
+        const source = TASHEER_SOURCE;
+        const sourceCenterX = (source.left + source.right) * .5;
+        const sourceCenterY = (source.top + source.bottom) * .5;
+        // Anchors measured in the sampled portrait, at the barrel's lower tip.
+        const muzzle = project((325 - sourceCenterX) * source.scale, (sourceCenterY - 1311) * source.scale, .025);
+        const barrel = project((296 - sourceCenterX) * source.scale, (sourceCenterY - 1160) * source.scale, .025);
+        const direction = Math.atan2(muzzle.y - barrel.y, muzzle.x - barrel.x);
+        const groundX = centerX - .252 * Math.cos(scene.yaw) * scale;
+        const groundY = centerY + 1.16 * scale;
+        const unit = scale / 210;
+        const age = pose.shotAge;
+
+        if (pose.flash > 0) {
+          ctx.save();
+          ctx.translate(muzzle.x, muzzle.y);
+          ctx.rotate(direction - Math.PI / 2);
+          ctx.globalCompositeOperation = "screen";
+          ctx.globalAlpha = pose.flash * intensity;
+          const light = ctx.createRadialGradient(0, 5 * unit, 0, 0, 5 * unit, 31 * unit);
+          light.addColorStop(0, "rgba(255,246,220,.8)");
+          light.addColorStop(.23, "rgba(242,209,147,.35)");
+          light.addColorStop(1, "rgba(222,187,125,0)");
+          ctx.fillStyle = light;
+          ctx.fillRect(-31 * unit, -26 * unit, 62 * unit, 62 * unit);
+          ctx.fillStyle = "rgba(255,247,227,.95)";
+          ctx.beginPath();
+          ctx.moveTo(-2.5 * unit, -2 * unit);
+          ctx.lineTo(-6 * unit, 10 * unit);
+          ctx.lineTo(-2 * unit, 7 * unit);
+          ctx.lineTo(1 * unit, 24 * unit);
+          ctx.lineTo(4 * unit, 8 * unit);
+          ctx.lineTo(7 * unit, 11 * unit);
+          ctx.lineTo(2.5 * unit, -2 * unit);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+
+        if (age > .055) {
+          const dustAge = age - .055;
+          const fade = clamp(1 - dustAge / 1.5);
+          ctx.save();
+          ctx.globalAlpha = intensity;
+          // The dust stays on the floor while the performer rises and turns.
+          ctx.strokeStyle = `rgba(225,222,211,${fade * .16})`;
+          ctx.lineWidth = .7 * unit;
+          ctx.beginPath();
+          ctx.ellipse(groundX, groundY, (5 + dustAge * 40) * unit, (1.4 + dustAge * 7) * unit, 0, 0, TURN);
+          ctx.stroke();
+          for (let index = 0; index < 40; index++) {
+            const angle = index * 2.399963;
+            const spread = 13 + (index % 7) * 8;
+            const travel = 1 - Math.exp(-dustAge * 3);
+            const x = groundX + Math.cos(angle) * spread * travel * unit;
+            const y = groundY + Math.sin(angle) * spread * travel * .16 * unit - Math.sin(clamp(dustAge / 1.45) * Math.PI) * (4 + index % 11) * unit;
+            const size = (index % 4 === 0 ? 1.8 : 1) * unit;
+            ctx.fillStyle = `rgba(230,225,212,${fade * (index % 4 === 0 ? .38 : .6)})`;
+            ctx.fillRect(x, y, size, size);
+          }
+          // A few broad, fading wisps soften the small point impact.
+          for (let index = 0; index < 5; index++) {
+            const radius = (8 + dustAge * 12) * unit;
+            const x = groundX + Math.sin(index * 2.4 + dustAge) * dustAge * 22 * unit;
+            const y = groundY - dustAge * (12 + index * 4) * unit;
+            const smoke = ctx.createRadialGradient(x, y, 0, x, y, radius);
+            smoke.addColorStop(0, `rgba(220,224,220,${fade * .045})`);
+            smoke.addColorStop(1, "rgba(220,224,220,0)");
+            ctx.fillStyle = smoke;
+            ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+          }
+          ctx.restore();
+        }
       }
       if (stage) ctx.restore();
     };
@@ -280,6 +400,16 @@ export function AmbientArtwork({ subdued = false, children }: { subdued?: boolea
       if ((event.target as Element | null)?.closest("button,a,input,textarea,select,summary,.terminal,[role=dialog]")) return;
       impulse = 5;
     };
+    replayRef.current = () => {
+      if (!moving || subdued || reducedMotion || scene.time - scene.lastReplay < 1.4) return;
+      scene.lastReplay = scene.time;
+      const phase = scene.performanceTime % PERFORMANCE_SECONDS;
+      // Finish an active turn before replaying, rather than snapping to its start.
+      if (phase >= SHOT_AT - .18 && phase < 4.5) scene.replayQueued = true;
+      else scene.performanceTime = SHOT_AT - .18;
+      impulse = .65;
+      render();
+    };
     resize();
     bindStage();
     if (moving && !document.hidden) frame = requestAnimationFrame(tick);
@@ -296,6 +426,7 @@ export function AmbientArtwork({ subdued = false, children }: { subdued?: boolea
       detailImage.removeEventListener("load", onDetailReady);
       stageObserver.disconnect();
       stageChangedRef.current = null;
+      replayRef.current = null;
       window.removeEventListener("resize", resize);
       window.removeEventListener("scroll", onScroll);
       document.removeEventListener("visibilitychange", visibility);
@@ -303,9 +434,9 @@ export function AmbientArtwork({ subdued = false, children }: { subdued?: boolea
       window.removeEventListener("pointerdown", onPress);
       document.removeEventListener("pointerleave", onLeave);
     };
-  }, [moving, subdued]);
+  }, [moving, subdued, reducedMotion]);
 
-  return <MotionContext.Provider value={{ moving, reducedMotion, toggle: () => setPaused((value) => !value), registerStage }}>
+  return <MotionContext.Provider value={{ moving, reducedMotion, toggle: () => setPaused((value) => !value), replay, registerStage }}>
     <div className="ambient-artwork-scene" aria-hidden="true"><canvas ref={canvasRef} /></div>
     {children}
   </MotionContext.Provider>;

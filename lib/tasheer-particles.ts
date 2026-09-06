@@ -10,7 +10,29 @@ export type ArtworkParticle = {
   brightness: number;
   phase: number;
   flex: number;
+  turnDepth: number;
 };
+
+// Soft volumes follow the portrait's head, shoulders, cloth, arms, and feet.
+// They give the point artwork a readable side profile during its turn without
+// changing the source portrait or inflating its thin rifle and trailing scarf.
+const PORTRAIT_VOLUMES = [
+  [-.03, .75, .25, .24, .18],
+  [.12, .44, .34, .28, .26],
+  [.22, .04, .43, .48, .32],
+  [-.20, .10, .24, .30, .21],
+  [-.29, .37, .30, .11, .09],
+  [.04, -.46, .21, .25, .12],
+];
+
+function portraitDepth(x: number, y: number): number {
+  let depth = 0;
+  for (const [cx, cy, rx, ry, radius] of PORTRAIT_VOLUMES) {
+    const distance = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2;
+    if (distance < 1) depth = Math.max(depth, Math.sqrt(1 - distance) * radius);
+  }
+  return depth;
+}
 
 /** A deterministic, shallow-depth portrait of the detailed single Tasheer performer. */
 export function createTasheerParticles(count: number, seed = 0x54415348): ArtworkParticle[] {
@@ -22,9 +44,9 @@ export function createTasheerParticles(count: number, seed = 0x54415348): Artwor
   for (let index = 0; index < total; index++) {
     const source = cloud.points[index % cloud.points.length];
     const luminance = source[2] / 255;
-    const y = source[1] / 10000;
+    const x = source[0] / 10000, y = source[1] / 10000;
     particles.push({
-      x: source[0] / 10000,
+      x,
       y,
       z: (random() - .5) * .065 + (1 - luminance) * .07,
       size: .55 + random() * .30 + luminance * .35,
@@ -32,6 +54,7 @@ export function createTasheerParticles(count: number, seed = 0x54415348): Artwor
       phase: random() * Math.PI * 2,
       // Fine cloth/smoke drift keeps the photographed airborne pose coherent.
       flex: Math.max(0, Math.min(1, (.35 - y) * .6)) * .45,
+      turnDepth: portraitDepth(x, y),
     });
   }
   return particles;
