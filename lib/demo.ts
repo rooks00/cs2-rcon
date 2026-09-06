@@ -1,4 +1,4 @@
-const DEMO_STATUS = `hostname: RELAY // PRACTICE EU
+const DEMO_STATUS = `hostname: CS2 RCON // PRACTICE EU
 version : 1.41.3.2/14132 10581 secure
 udp/ip  : 203.0.113.42:27015
 os      : Linux

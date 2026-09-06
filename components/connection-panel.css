@@ -1,0 +1,71 @@
+/* Connection modes share one shell; retained grid panels keep its dimensions steady. */
+.connection-panel--modes .connection-mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 22px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: rgb(255 255 255 / 3%);
+}
+.connection-mode-switch > button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.connection-mode-switch > button:hover:not(:disabled) { color: var(--text); background: rgb(255 255 255 / 5%); }
+.connection-mode-switch > button[aria-pressed="true"] { color: var(--text); background: rgb(255 255 255 / 12%); border-color: rgb(255 255 255 / 9%); box-shadow: 0 1px 3px rgb(0 0 0 / 12%); }
+.connection-mode-body, .connection-entry-panels { display: grid; min-width: 0; }
+.connection-mode-panel, .connection-entry-panel { grid-area: 1 / 1; min-width: 0; align-self: start; }
+.connection-mode-panel[data-active="false"], .connection-entry-panel[data-active="false"] { visibility: hidden; pointer-events: none; }
+.connection-panel--modes .connection-tabs { margin-block: 20px 17px; }
+.connection-panel--modes .connect-form { display: flex; flex-direction: column; gap: 15px; }
+.connection-panel--modes .connect-form fieldset { gap: 15px; }
+.connection-panel--modes .connect-form .connection-shared-fields { gap: 15px; }
+.connection-entry-panel[aria-hidden="true"] { user-select: none; }
+.connection-panel--modes .json-import textarea { height: 158px; min-height: 158px; max-height: 250px; padding: 12px; font-size: 12px; line-height: 1.7; resize: vertical; }
+.connection-panel--modes .json-import > p { margin-top: 10px; font-size: 12px; line-height: 1.65; }
+.connection-panel--modes .json-import__label { margin-bottom: 9px; }
+.connection-panel--modes .import-choices { max-height: 155px; overflow-y: auto; overscroll-behavior: contain; margin-top: 13px; }
+.connection-panel--modes .import-choices strong, .connection-panel--modes .import-choices small { overflow-wrap: anywhere; }
+.connection-panel--modes .import-choices button > span { min-width: 0; }
+.connection-panel--modes .connection-error { max-height: 86px; overflow-y: auto; overscroll-behavior: contain; margin: 0; }
+.connection-panel--modes .connection-error > span { min-width: 0; overflow-wrap: anywhere; }
+.connection-panel--modes .import-success { max-height: 58px; overflow-y: auto; margin: 0; }
+.connection-access-key > small { min-height: 19px; }
+.connection-access-key__hint { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.connection-access-key__hint > span { min-width: 0; }
+.connection-capability-retry { flex-shrink: 0; padding: 0; border: 0; background: none; color: var(--text-soft); font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
+.connection-local-status { display: flex; align-items: flex-start; gap: 7px; margin-top: 12px; color: var(--muted); font-size: 12px; line-height: 1.65; }
+.connection-local-status > svg { margin-top: 3px; }
+.connection-local-status--error { color: var(--red); }
+.connection-panel--modes .helper-launcher { padding-top: 0; }
+.connection-panel--modes .connection-privacy { margin-top: 12px; }
+.connection-panel--modes .connection-demo { margin-top: 16px; padding-top: 16px; }
+.connection-panel--modes .remember-field { color: var(--text-soft); }
+@media (min-width: 768px) and (max-height: 850px) {
+  .connection-panel--modes .connection-mode-switch { margin-bottom: 18px; }
+  .connection-panel--modes .connection-tabs { margin-block: 17px 15px; }
+  .connection-panel--modes .connect-form, .connection-panel--modes .connect-form fieldset, .connection-panel--modes .connect-form .connection-shared-fields { gap: 13px; }
+}
+@media (max-width: 767px) {
+  .connection-panel--modes .connection-mode-switch { margin-bottom: 21px; }
+  .connection-mode-switch > button { gap: 6px; padding-inline: 6px; font-size: 11px; }
+  .connection-mode-switch > button > svg { width: 13px; height: 13px; }
+  .connection-panel--modes .json-import textarea { height: 177px; min-height: 177px; }
+  .connection-access-key__hint { font-size: 11px; }
+}
+@media (max-width: 360px) {
+  .connection-mode-switch > button > svg { display: none; }
+}

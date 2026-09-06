@@ -3,6 +3,7 @@
 import {
   Ban,
   Bot,
+  BookOpen,
   Check,
   ChevronDown,
   ChevronRight,
@@ -14,13 +15,11 @@ import {
   Globe2,
   HardDrive,
   LoaderCircle,
-  LockKeyhole,
   Map as MapIcon,
   MessageSquare,
   Pause,
   Play,
   Plus,
-  Radio,
   RefreshCw,
   RotateCcw,
   Search,
@@ -29,7 +28,6 @@ import {
   Settings,
   ShieldCheck,
   ShieldOff,
-  Star,
   Swords,
   Target,
   Trash2,
@@ -56,11 +54,13 @@ import type {
   ServerSnapshot,
   StoredState,
 } from "@/lib/types";
+import { MapsView } from "@/components/maps-view";
+import { ConnectionGuideContent } from "@/components/connection-guide-content";
 import { RelayLogo } from "@/components/relay-logo";
 import { AmbientArtwork, ArtworkMotionControl, ArtworkStage } from "@/components/ambient-artwork";
 import { ConnectionPanel, type ConnectionPanelProps, type ConnectionInput } from "@/components/connection-panel";
 
-type Section = "players" | "bans" | "maps" | "modes" | "console" | "settings";
+type Section = "players" | "bans" | "maps" | "modes" | "console" | "settings" | "guide";
 type Secrets = { password: string; relayKey: string };
 type Toast = { id: string; message: string; tone: "success" | "error" | "info" };
 type ConsoleCommandOption = { name: string; syntax: string; description: string; meta: string };
@@ -95,6 +95,7 @@ const SECTION_COPY: Record<Section, { eyebrow: string; title: string; descriptio
   maps: { eyebrow: "Rotation", title: "Server maps", description: "Browse installed maps and change level safely." },
   modes: { eyebrow: "Ruleset", title: "Game modes", description: "Manage the exact game_type and game_mode pair." },
   console: { eyebrow: "RCON", title: "Server console", description: "Commands, players, and match controls in one place." },
+  guide: { eyebrow: "Connection", title: "Connection guide", description: "Connect through this website or your own device." },
   settings: { eyebrow: "Local setup", title: "Settings", description: "Profiles, polling, and browser-only data." },
 };
 
@@ -150,7 +151,7 @@ async function requestRcon(profile: ServerProfile, secrets: Secrets, commands: s
   });
   const payload = (await response.json().catch(() => null)) as RconApiResponse | null;
   if (!response.ok || !payload?.ok || !payload.results) {
-    throw new Error(payload?.error?.message ?? `Relay request failed (${response.status}).`);
+    throw new Error(payload?.error?.message ?? `RCON request failed (${response.status}).`);
   }
   return payload.results;
 }
@@ -552,10 +553,10 @@ export function RconDashboard() {
   const pageCopy = SECTION_COPY[section];
 
   return (
-    <AmbientArtwork subdued={connected}>
+    <AmbientArtwork subdued={connected && section !== "guide"}>
     <div className={`app-shell ${connected ? "app-shell--connected" : "app-shell--welcome"}`}>
       <header className="topbar">
-        <button className="topbar__brand" onClick={() => setSection("console")} aria-label="Relay home"><RelayLogo /><span className="brand-subtitle">for Counter-Strike 2</span></button>
+        <button className="topbar__brand" onClick={() => setSection("console")} aria-label="CS2 RCON home"><RelayLogo /></button>
         {connected && (
           <nav className="main-nav" aria-label="Primary navigation">
             {NAV_ITEMS.map((item) => (
@@ -571,18 +572,20 @@ export function RconDashboard() {
         )}
         <div className="topbar__actions">
           <ArtworkMotionControl />
-          <a className="topbar__link" href="/connection-guide">Connection guide</a>
+          <a className={`topbar__link ${section === "guide" ? "is-active" : ""}`} href="/connection-guide" aria-label="Connection guide" aria-current={section === "guide" ? "page" : undefined} onClick={(event) => {
+            if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); setSection("guide"); }
+          }} title="Connection guide"><BookOpen size={17} /><span>Connection guide</span></a>
           <button className={`icon-button ${section === "settings" ? "is-active" : ""}`} onClick={() => setSection("settings")} aria-label="Settings" title="Settings"><Settings size={18} /></button>
-          {(connected || section === "settings") && <button className="button button--secondary topbar-connect" onClick={() => setConnectOpen(true)}><Plus size={15} />Connect server</button>}
-          {!connected && section !== "settings" && <button className="button button--secondary welcome-connect-shortcut" onClick={() => {
+          {(connected || section === "settings" || section === "guide") && <button className="button button--secondary topbar-connect" aria-label="Connect server" title="Connect server" onClick={() => setConnectOpen(true)}><Plus size={15} /><span>Connect server</span></button>}
+          {!connected && section !== "settings" && section !== "guide" && <button className="button button--secondary welcome-connect-shortcut" aria-label="Connect server" title="Connect server" onClick={() => {
             document.querySelector(".connection-panel")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
-          }}>Connect server</button>}
+          }}><Plus size={15} /><span>Connect server</span></button>}
         </div>
       </header>
 
       <main className="workspace" id="main-content">
         <div className="content-wrap">
-          {(connected || section === "settings") && (
+          {section !== "guide" && (connected || section === "settings") && (
             <div className="page-heading">
               <div>
                 <h1>{pageCopy.title}</h1>
@@ -598,10 +601,11 @@ export function RconDashboard() {
             </div>
           )}
 
-          {!connected && section !== "settings" ? (
+          {!connected && section !== "settings" && section !== "guide" ? (
             <ConnectionWorkspace key={activeProfile?.id ?? "new"} profiles={stored.profiles} activeProfile={demoMode ? null : activeProfile} secrets={secrets} busy={connecting} onSave={saveAndConnect} onDemo={() => void connectProfile(DEMO_PROFILE, { password: "demo", relayKey: "" })} />
           ) : (
             <>
+              {section === "guide" && <ConnectionGuideContent onBack={() => setSection("console")} />}
               {section === "players" && snapshot && (
                 <PlayersView
                   players={filteredPlayers}
@@ -657,7 +661,7 @@ export function RconDashboard() {
                   })}
                   onUnbanAll={() => confirmAction({
                     title: "Unban everyone?",
-                    body: `This removes all ${bans.length} loaded Steam and IP bans, then writes both filter lists to disk. This cannot be undone from Relay.`,
+                    body: `This removes all ${bans.length} loaded Steam and IP bans, then writes both filter lists to disk. This cannot be undone from CS2 RCON.`,
                     label: `Unban all ${bans.length}`,
                     tone: "danger",
                     action: async () => {
@@ -692,9 +696,9 @@ export function RconDashboard() {
                   onChange={(map) => confirmAction({
                     title: `${map.category === "Workshop" ? "Change Workshop map" : "Change level"} to ${map.displayName ?? map.name}?`,
                     body: map.workshopId
-                      ? `Relay identified Workshop item ${map.workshopId} from the server's installed-map path and will run host_workshop_map ${map.workshopId}. The current match will end while Steam mounts the map.`
+                      ? `CS2 RCON identified Workshop item ${map.workshopId} from the server's installed-map path and will run host_workshop_map ${map.workshopId}. The current match will end while Steam mounts the map.`
                       : map.category === "Workshop"
-                        ? `CS2 listed ${map.name} as an available Workshop collection map without exposing its published-file ID. Relay will use ds_workshop_changelevel ${map.name}, the dedicated command for an existing Workshop map.`
+                        ? `CS2 listed ${map.name} as an available Workshop collection map without exposing its published-file ID. CS2 RCON will use ds_workshop_changelevel ${map.name}, the dedicated command for an existing Workshop map.`
                         : "The current match will end and every connected player will load the selected map using changelevel.",
                     label: map.workshopId ? "Host Workshop map" : map.category === "Workshop" ? "Change Workshop map" : "Change level",
                     tone: "warning",
@@ -751,19 +755,20 @@ export function RconDashboard() {
                     onClear={() => setStored((current) => ({ ...current, consoleHistory: [] }))}
                     onCopy={(value) => { void navigator.clipboard.writeText(value).then(() => notify("Copied to clipboard.", "success")).catch(() => notify("Could not copy. Select the response and copy it manually.", "error")); }}
                     endRef={terminalEndRef}
-                  />
-                  <SessionControls
-                    broadcast={broadcast}
-                    setBroadcast={setBroadcast}
-                    onBroadcast={() => {
-                      const message = broadcast.trim();
-                      if (!message) return;
-                      setBroadcast("");
-                      void runQuick(`say ${quoteRcon(message)}`, "Message sent to the server.").catch(() => undefined);
-                    }}
-                    onMaps={() => setSection("maps")}
-                    onQuick={(command, title, body, label) => confirmAction({ title, body, label, tone: "warning", action: async () => { await runQuick(command, `${title} command sent.`); } })}
-                  />
+                  >
+                    <SessionControls
+                      broadcast={broadcast}
+                      setBroadcast={setBroadcast}
+                      onBroadcast={() => {
+                        const message = broadcast.trim();
+                        if (!message) return;
+                        setBroadcast("");
+                        void runQuick(`say ${quoteRcon(message)}`, "Message sent to the server.").catch(() => undefined);
+                      }}
+                      onMaps={() => setSection("maps")}
+                      onQuick={(command, title, body, label) => confirmAction({ title, body, label, tone: "warning", action: async () => { await runQuick(command, `${title} command sent.`); } })}
+                    />
+                  </ConsoleView>
                 </div>
               )}
               {section === "settings" && (
@@ -791,7 +796,7 @@ export function RconDashboard() {
                   })}
                   onDisconnect={disconnect}
                   onRefreshChange={(seconds) => setStored((current) => ({ ...current, refreshSeconds: seconds }))}
-                  onExport={() => downloadText("relay-settings.json", exportStoredState(stored))}
+                  onExport={() => downloadText("cs2-rcon-settings.json", exportStoredState(stored))}
                   onClearData={() => confirmAction({
                     title: "Clear all local data?",
                     body: "Profiles, favorites, command history, and the synced catalogue will be removed from this browser.",
@@ -986,65 +991,6 @@ function BansView({ bans, total, loading, search, setSearch, kind, setKind, onRe
   );
 }
 
-interface MapsViewProps {
-  maps: ServerMap[];
-  total: number;
-  currentMap: string;
-  favorites: string[];
-  loading: boolean;
-  search: string;
-  setSearch: (value: string) => void;
-  workshopId: string;
-  setWorkshopId: (value: string) => void;
-  onRefresh: () => void;
-  onFavorite: (name: string) => void;
-  onChange: (map: ServerMap) => void;
-  onWorkshop: () => void;
-}
-
-function MapsView({ maps, total, currentMap, favorites, loading, search, setSearch, workshopId, setWorkshopId, onRefresh, onFavorite, onChange, onWorkshop }: MapsViewProps) {
-  const sorted = [...maps].sort((a, b) => Number(favorites.includes(b.name)) - Number(favorites.includes(a.name)) || (a.displayName ?? a.name).localeCompare(b.displayName ?? b.name));
-  return (
-    <div className="stack-lg">
-      <section className="map-current panel">
-        <div><p className="eyebrow">Now playing</p><h2>{currentMap}</h2><p><Radio size={14} />Active on the live server</p></div>
-      </section>
-      <section className="panel maps-panel">
-        <div className="data-toolbar">
-          <div className="search-field"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} aria-label="Search maps" placeholder="Search installed maps" /></div>
-          <div className="toolbar-spacer" />
-          <span className="record-count">{maps.length} of {total}</span>
-          <button className="button button--secondary" onClick={onRefresh} disabled={loading}><RefreshCw size={15} className={loading ? "spin" : ""} />Sync server maps</button>
-        </div>
-        <div className="map-grid map-list">
-          {sorted.map((map) => {
-            const isCurrent = map.name === currentMap;
-            const isFavorite = favorites.includes(map.name);
-            const displayName = map.displayName ?? map.name;
-            return (
-              <article className={`map-card ${isCurrent ? "is-current" : ""}`} key={`${map.workshopId ?? "stock"}-${map.name}`}>
-                <div className="map-card__body">
-                  <span className="map-card__category">{map.category}{map.workshopId ? ` · #${map.workshopId}` : ""}</span>
-                  <button className={`favorite-button ${isFavorite ? "is-favorite" : ""}`} onClick={() => onFavorite(map.name)} aria-label={`${isFavorite ? "Remove" : "Add"} ${map.name} ${isFavorite ? "from" : "to"} favorites`}><Star size={15} fill={isFavorite ? "currentColor" : "none"} /></button>
-                  <h3 title={displayName}>{displayName}</h3>
-                  {map.workshopId && displayName !== map.name && <code className="map-card__internal">{map.name}</code>}
-                  <button className={`button ${isCurrent ? "button--current" : "button--tiny"}`} onClick={() => !isCurrent && onChange(map)} disabled={isCurrent}>{isCurrent ? <><Radio size={13} />Current</> : <>{map.workshopId ? "Host Workshop map" : map.category === "Workshop" ? "Change Workshop map" : "Change level"} <ChevronRight size={13} /></>}</button>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-        {!maps.length && <InlineEmpty icon={MapIcon} title="No matching maps" copy="Try another search or sync the installed map list." />}
-      </section>
-      <section className="workshop-panel panel">
-        <span className="workshop-panel__icon"><Download size={20} /></span>
-        <div><p className="eyebrow">Steam Workshop</p><h3>Load by Workshop ID</h3><p>The server downloads missing content before switching.</p></div>
-        <div className="workshop-input"><input inputMode="numeric" value={workshopId} onChange={(event) => setWorkshopId(event.target.value.replace(/\D/g, ""))} aria-label="Workshop item ID" placeholder="3121800508" maxLength={15} /><button className="button button--primary" onClick={onWorkshop} disabled={!workshopId}>Load map</button></div>
-      </section>
-    </div>
-  );
-}
-
 interface GameModesViewProps {
   presets: GameModePreset[];
   current: { type: number; mode: number } | null;
@@ -1079,7 +1025,7 @@ function GameModesView({ presets, current, currentMap, loading, onRefresh, onSta
 
       <section className="mode-guidance panel">
         <span><Swords size={18} /></span>
-        <div><strong>Safe mode changes never force a reload</strong><p>Relay only stages the two ConVars here. The matching Valve configs initialize when you deliberately leave <code>{currentMap}</code> from the Maps section, avoiding an automatic <code>map</code> command that can terminate Linux/Docker servers.</p></div>
+        <div><strong>Safe mode changes never force a reload</strong><p>CS2 RCON only stages the two ConVars here. The matching Valve configs initialize when you deliberately leave <code>{currentMap}</code> from the Maps section, avoiding an automatic <code>map</code> command that can terminate Linux/Docker servers.</p></div>
       </section>
 
       <section className="panel mode-catalog">
@@ -1122,6 +1068,7 @@ function GameModesView({ presets, current, currentMap, loading, onRefresh, onSta
 }
 
 interface ConsoleViewProps {
+  children: React.ReactNode;
   entries: ConsoleEntry[];
   input: string;
   setInput: (value: string) => void;
@@ -1145,7 +1092,7 @@ interface ConsoleViewProps {
   endRef: React.RefObject<HTMLDivElement | null>;
 }
 
-function ConsoleView({ entries, input, setInput, busy, search, setSearch, commands, completions, syncedCount, syncing, snapshot, profile, latency, demoMode, onSync, onSubmit, onKeyDown, onUseCommand, onClear, onCopy, endRef }: ConsoleViewProps) {
+function ConsoleView({ children, entries, input, setInput, busy, search, setSearch, commands, completions, syncedCount, syncing, snapshot, profile, latency, demoMode, onSync, onSubmit, onKeyDown, onUseCommand, onClear, onCopy, endRef }: ConsoleViewProps) {
   const [completionIndex, setCompletionIndex] = useState(0);
   const [completionVisible, setCompletionVisible] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -1251,6 +1198,8 @@ function ConsoleView({ entries, input, setInput, busy, search, setSearch, comman
         <div className="terminal-hints"><span><kbd>↑</kbd><kbd>↓</kbd> command history</span><span><kbd>Tab</kbd> autocomplete</span><span>{demoMode ? "Demo responses" : "RCON over TCP"}</span></div>
       </section>
 
+      {children}
+
       <details className="command-browser command-reference">
         <summary className="command-browser__head"><h2>Command reference</h2><span>{syncedCount ? `${syncedCount.toLocaleString()} synced` : "Built-in commands"}</span><ChevronDown size={15} /></summary>
         <div className="search-field search-field--compact"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} aria-label="Search commands" placeholder="Search commands" /></div>
@@ -1309,10 +1258,6 @@ function SettingsView({ stored, activeProfile, connected, demoMode, onAdd, onSwi
         <div className="button-row"><button className="button button--secondary" onClick={onExport}><Download size={15} />Export safe copy</button><button className="button button--danger-outline" onClick={onClearData}><Trash2 size={15} />Clear data</button></div>
       </section>
 
-      <section className="panel security-card settings-section--wide">
-        <span className="security-card__icon"><LockKeyhole size={21} /></span>
-        <div><p className="eyebrow">Security model</p><h3>No cloud database. No server-side sessions.</h3><p>Profiles and history are saved in this browser. This app’s built-in connection service uses your RCON password in memory to talk to the game server. Passwords are saved on this device only when you choose. There is no account, separate worker, or database. Use an installation you trust.</p></div>
-      </section>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { readJsonBody, RequestError } from "@/lib/server/request";
 import { connectionLimiter } from "@/lib/server/limits";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0", Pragma: "no-cache" };
 

@@ -1,16 +1,53 @@
 "use client";
 
-import { ArrowLeft, ArrowUpRight, Check, Copy, Monitor, SquareTerminal } from "lucide-react";
-import { useState } from "react";
-import { helperLaunchCommand } from "@/lib/helper-install";
+import { Check, Copy, Monitor, SquareTerminal } from "lucide-react";
+import { useEffect, useState } from "react";
+import { getKnownLocalHelper, helperLaunchCommand, helperWebsiteOrigin, rememberLocalHelper } from "@/lib/helper-install";
 
-export function HelperLauncher({ onBack }: { onBack: () => void }) {
-  const [platform, setPlatform] = useState<"unix" | "windows">(() => /Windows/i.test(navigator.userAgent) ? "windows" : "unix");
+export function HelperLauncher({ origin }: { origin?: string }) {
+  const [platform, setPlatform] = useState<"unix" | "windows">("unix");
+  const [site, setSite] = useState(() => helperWebsiteOrigin(origin));
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
-  const origin = window.location.origin;
-  const command = helperLaunchCommand(origin, platform);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 5000);
+    let active = true;
+    const resolveSite = async () => {
+      setPlatform(/Windows/i.test(navigator.userAgent) ? "windows" : "unix");
+      const knownSite = helperWebsiteOrigin(origin) ?? getKnownLocalHelper()?.site;
+      if (knownSite) {
+        setSite(knownSite);
+        window.clearTimeout(timeout);
+        return;
+      }
+      let source = window.location.origin;
+      try {
+        const response = await fetch("/api/rcon", { cache: "no-store", signal: controller.signal });
+        const value: unknown = response.ok ? await response.json() : null;
+        if (value && typeof value === "object" && "transport" in value && value.transport === "local-tcp" && "hostedSite" in value) {
+          const hostedSite = helperWebsiteOrigin(value.hostedSite);
+          if (hostedSite) {
+            source = hostedSite;
+            rememberLocalHelper({ site: hostedSite, version: "helperVersion" in value && typeof value.helperVersion === "string" ? value.helperVersion : "" });
+          }
+        }
+      } catch {
+        // The page's own origin still serves the installer if metadata is unavailable.
+        source = getKnownLocalHelper()?.site ?? source;
+      } finally {
+        window.clearTimeout(timeout);
+        if (active) setSite(source);
+      }
+    };
+    queueMicrotask(() => { if (active) void resolveSite(); });
+    return () => { active = false; window.clearTimeout(timeout); controller.abort(); };
+  }, [origin]);
+
+  const command = site ? helperLaunchCommand(site, platform) : "Preparing your installation command…";
   const copy = async () => {
+    if (!site) return;
     try { await navigator.clipboard.writeText(command); setCopied(true); setCopyError(false); }
     catch { setCopyError(true); }
   };
@@ -20,11 +57,10 @@ export function HelperLauncher({ onBack }: { onBack: () => void }) {
       <button type="button" aria-pressed={platform === "unix"} className={platform === "unix" ? "is-active" : ""} onClick={() => { setPlatform("unix"); setCopied(false); }}>macOS / Linux</button>
       <button type="button" aria-pressed={platform === "windows"} className={platform === "windows" ? "is-active" : ""} onClick={() => { setPlatform("windows"); setCopied(false); }}>Windows</button>
     </div>
-    <div className="helper-command"><div><SquareTerminal size={14} /><span>{platform === "windows" ? "PowerShell" : "Terminal"}</span><button type="button" onClick={() => void copy()} aria-label="Copy helper command">{copied ? <Check size={14} /> : <Copy size={14} />}{copied ? "Copied" : "Copy"}</button></div><pre tabIndex={0}><code>{command}</code></pre></div>
+    <div className="helper-command"><div><SquareTerminal size={14} /><span>{platform === "windows" ? "PowerShell" : "Terminal"}</span><button type="button" onClick={() => void copy()} disabled={!site} aria-label="Copy helper command">{copied ? <Check size={14} /> : <Copy size={14} />}{copied ? "Copied" : "Copy"}</button></div><pre tabIndex={0} aria-live="polite"><code>{command}</code></pre></div>
     {copyError && <p className="helper-copy-error" role="status">Select the command above and copy it into your terminal.</p>}
     <ol className="helper-steps"><li>Run the command in {platform === "windows" ? "PowerShell" : "Terminal"}.</li><li>Enter your server details in the local workspace that opens.</li><li>Keep the terminal open. Press <kbd>Ctrl+C</kbd> to stop.</li></ol>
     <p className="helper-footnote"><Check size={13} />No Docker, Node.js, admin rights, or background service.</p>
     <p className="helper-footnote">The helper downloads to a temporary folder and checks its checksum before running. The website supplies the UI; RCON traffic stays on your computer.</p>
-    <div className="helper-links"><button type="button" className="text-button" onClick={onBack}><ArrowLeft size={13} />Use hosted connection</button><a href="/connection-guide#local-helper" target="_blank" rel="noreferrer">Details<ArrowUpRight size={13} /></a></div>
   </section>;
 }

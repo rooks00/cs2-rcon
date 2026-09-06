@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import "@/components/ambient-artwork.css";
+import "@/components/connection-panel.css";
+import "@/components/maps-view.css";
 
 const sans = localFont({
   src: "../public/fonts/dm-sans-latin-variable.woff2",
@@ -26,9 +28,9 @@ const mono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Relay | CS2 server console",
+  title: "CS2 RCON | Server console",
   description: "Connect to your Counter-Strike 2 server. Run RCON commands, manage players, and change maps in one workspace.",
-  applicationName: "Relay",
+  applicationName: "CS2 RCON",
 };
 
 export const viewport: Viewport = {

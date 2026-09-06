@@ -1,8 +1,8 @@
-# Relay
+# CS2 RCON
 
 A self-contained CS2 RCON workspace. Open it, enter a server address, TCP port and RCON password, and manage your server. Paste JSON to import connection details, or explore the interactive demo.
 
-**No account, database, separate worker, or deployment access key is required.** Relay's own Node server handles TCP. It runs locally, in Docker, or on a Node-compatible host; Vercel is optional.
+**No account, database, separate worker, or deployment access key is required.** CS2 RCON's own Node server handles TCP. It runs locally, in Docker, or on a Node-compatible host; Vercel is optional.
 
 ## For server owners
 
@@ -10,7 +10,11 @@ The website uses the hosted `/api/rcon` route by default, including on Vercel. V
 
 For a LAN/VPN server or a blocked hosted connection, select **Use this device** in the connection form. Copy the one-line Terminal or PowerShell command. It downloads a roughly 4 MB native helper, opens this same workspace on your computer, and stays active only while the command runs. No Node.js, Python, Docker, admin rights, manually configured relay key, or background service is required. Press **Ctrl+C** to stop.
 
-The helper uses a temporary directory, validates the download checksum, and pairs the browser automatically with a one-time local link. RCON runs on your computer; the website supplies only the interface/assets and optional Workshop titles. The hosted connection remains available through **Open hosted site**. See [the helper guide](helper/README.md).
+The helper uses a temporary directory, validates the download checksum, and pairs the browser automatically with a one-time local link. RCON runs on your computer; the website supplies only the interface/assets and optional Workshop titles. The **Hosted connection / Use this device** toggle stays at the top of the connection panel. In the local workspace, choosing **Hosted connection** opens the original hosted site. See [the helper guide](helper/README.md).
+
+The **Connection guide** opens within the workspace without ending an active session, and includes copyable macOS/Linux and Windows commands. Its direct `/connection-guide` URL remains available.
+
+After connection, Match controls sit directly below the console, with Command reference at the bottom. Maps use a selectable table with 10, 20, or 50 rows per page, one **Change level** action beside **Sync server maps**, and a Workshop ID loader at the top.
 
 ## Run the website yourself
 
@@ -53,7 +57,7 @@ Also supported:
 - Address aliases: `hostname`, `address`, `ip`; embedded `host:port` and `[IPv6]:port`.
 - Port aliases: `rconPort`, `rcon_port`; default `27015` when omitted.
 - Password aliases: `rconPassword`, `rcon_password`; whitespace is preserved.
-- Nested `rcon` / `server` objects, arrays, `{ "servers": [...] }`, and Relay's safe `{ "profiles": [...] }` exports.
+- Nested `rcon` / `server` objects, arrays, `{ "servers": [...] }`, and CS2 RCON's safe `{ "profiles": [...] }` exports.
 - Up to 50 profiles per import. Select one to review and connect. Missing passwords can be entered in the form.
 
 Imports never automatically remember passwords or accept an installation secret from the pasted document.
@@ -61,16 +65,16 @@ Imports never automatically remember passwords or accept an installation secret 
 ## Connection architecture
 
 ```text
-Browser ── HTTPS, same origin ──> Relay's built-in Node route
+Browser ── HTTPS, same origin ──> CS2 RCON's built-in Node route
                                       │
                                       └── Source RCON over TCP ──> CS2
 ```
 
 An ordinary browser cannot directly open raw TCP sockets. WebSocket, WebTransport and WebRTC require compatible protocols at the other end; native Source RCON does not implement them. Chrome Direct Sockets requires an installed Isolated Web App. The practical browse-and-connect solution is the integrated Node route, not a static browser-only bundle. [Research and primary sources](docs/connection-research.md).
 
-Each request connects, authenticates, executes a bounded batch, collects the response, and closes the socket. The user's RCON password is necessary; an additional Relay key is not.
+Each request connects, authenticates, executes a bounded batch, collects the response, and closes the socket. The user's RCON password is necessary; an additional installation key is not.
 
-**Existing installations:** if `RCON_RELAY_SECRET` was set previously, remove it and restart/redeploy to enable keyless access. Keeping it deliberately protects a private installation; the form reveals an access-key field only for those installations. Nothing embeds the key in the frontend.
+**Existing installations:** if `RCON_RELAY_SECRET` was set previously, remove it and restart/redeploy to enable keyless access. Keeping it deliberately protects a private installation; the hosted form always shows the installation access-key field from first load, optional until the runtime capability check confirms it is required. A failed or delayed check never hides the field; the local helper does not use an installation key. Nothing embeds the key in the frontend.
 
 ## Prepare your game server
 
@@ -86,9 +90,9 @@ Configure the password in the server configuration loaded at startup:
 rcon_password "replace-with-a-long-random-password"
 ```
 
-Allow the server's **TCP** RCON port through its firewall from the Relay host. A game's UDP port allowance alone does not enable TCP RCON. The address must be reachable from the application host; this can differ from your browser's network. Some providers expose a proprietary console rather than Source RCON—ask for a native TCP RCON endpoint.
+Allow the server's **TCP** RCON port through its firewall from the application host. A game's UDP port allowance alone does not enable TCP RCON. The address must be reachable from the application host; this can differ from your browser's network. Some providers expose a proprietary console rather than Source RCON—ask for a native TCP RCON endpoint.
 
-HTTPS protects browser → Relay. Source RCON does **not** encrypt Relay → game server. Use a trusted installation, preferably beside the game server or through a private network/VPN, and restrict the game-server firewall to the application's egress address.
+HTTPS protects browser → app. Source RCON does **not** encrypt app → game server. Use a trusted installation, preferably beside the game server or through a private network/VPN, and restrict the game-server firewall to the application's egress address.
 
 ### LAN and local servers
 

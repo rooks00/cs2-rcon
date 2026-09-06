@@ -55,6 +55,15 @@ function request(port: number, options: { password?: string; commands?: unknown;
 }
 
 describe("integrated production RCON route", () => {
+  it("reads access-key requirements at request time and forbids capability caching", async () => {
+    for (const secret of ["", "private-installation-key", ""]) {
+      vi.stubEnv("RCON_RELAY_SECRET", secret);
+      const response = await GET();
+      expect(response.headers.get("cache-control")).toContain("no-store");
+      expect(response.headers.get("pragma")).toBe("no-cache");
+      expect(await response.json()).toEqual({ ok: true, transport: "integrated-tcp", requiresAccessKey: Boolean(secret) });
+    }
+  });
   it("connects over real TCP in production without a deployment key", async () => {
     const { port, received } = await fixture();
     const response = await POST(request(port));
