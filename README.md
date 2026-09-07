@@ -1,160 +1,91 @@
 # CS2 RCON
 
-A self-contained CS2 RCON workspace. Open it, enter a server address, TCP port and RCON password, and manage your server. Paste JSON to import connection details, or explore the interactive demo.
+A browser workspace for managing Counter-Strike 2 servers: console commands, players, bans, maps, Workshop maps, and match controls. No account or database required.
 
-**No account, database, separate worker, or deployment access key is required.** CS2 RCON's own Node server handles TCP. It runs locally, in Docker, or on a Node-compatible host; Vercel is optional.
+[![CI](https://github.com/rooks00/cs2-rcon/actions/workflows/ci.yml/badge.svg)](https://github.com/rooks00/cs2-rcon/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/rooks00/cs2-rcon?style=social)](https://github.com/rooks00/cs2-rcon/stargazers)
 
-## For server owners
+[Open the app](https://cs.rooks.zip) · [Star on GitHub](https://github.com/rooks00/cs2-rcon) · [Report a bug](https://github.com/rooks00/cs2-rcon/issues)
 
-The website uses the hosted `/api/rcon` route by default, including on Vercel. Visitors do **not** need to run Docker or install this webapp.
+## Connect
 
-For a LAN/VPN server or a blocked hosted connection, select **Use this device** in the connection form. Copy the one-line Terminal or PowerShell command. It downloads a roughly 4 MB native helper, opens this same workspace on your computer, and stays active only while the command runs. No Node.js, Python, Docker, admin rights, manually configured relay key, or background service is required. Press **Ctrl+C** to stop.
+Enter your server address, **TCP** RCON port (usually `27015`), and RCON password. Or try the interactive demo without a server.
 
-The helper uses a temporary directory, validates the download checksum, and pairs the browser automatically with a one-time local link. RCON runs on your computer; the website supplies only the interface/assets and optional Workshop titles. The **Hosted connection / Use this device** toggle stays at the top of the connection panel. In the local workspace, choosing **Hosted connection** opens the original hosted site. See [the helper guide](helper/README.md).
+- **Hosted connection:** the website's server connects to your CS2 server.
+- **Use this device:** run the portable helper on your computer to reach LAN/VPN servers. Pair it with the current website using its temporary token, or open the helper's local workspace if your browser blocks local access. See [the helper guide](helper/README.md).
 
-The **Connection guide** opens within the workspace without ending an active session, and includes copyable macOS/Linux and Windows commands. Its direct `/connection-guide` URL remains available.
+The helper runs in the foreground on Windows, macOS, and Linux; no Docker, Node.js, or administrator privileges are needed. Stop it with **Ctrl+C**.
 
-After connection, Match controls sit directly below the console, with Command reference at the bottom. Maps use a selectable table with 10, 20, or 50 rows per page, one **Change level** action beside **Sync server maps**, and a Workshop ID loader at the top.
+## Features
 
-## Run the website yourself
+- Console with command history, completion, and server command discovery
+- Player management, kick/ban actions, and Steam/IP ban lists
+- Installed maps, favorites, Workshop lookup, and map loading
+- Game modes, restart, warmup, pause, and broadcast controls
+- Browser-local profiles and JSON connection imports
+- Responsive interface, reduced-motion support, and locally served fonts
 
-```bash
+Source RCON cannot start an offline game server or manage its files.
+
+## Run locally
+
+Requires Node.js 22 or newer and npm.
+
+```sh
 npm ci
 npm run dev
 ```
 
-Open `http://localhost:3000`. No `.env` file is needed. For a production Node installation:
+Open <http://localhost:3000>. No `.env` file is required. For production:
 
-```bash
-npm ci
+```sh
 npm run build
 npm start
 ```
 
-Use Node.js 22 or newer. The included Docker image uses Node 22. Docker explicitly enables `RELAY_STANDALONE=1`; normal and Vercel builds use standard output to avoid the Next 16.3 adapter/standalone trace conflict. Do not set `RELAY_STANDALONE` on Vercel.
+Or use Docker:
 
-```bash
+```sh
 docker compose up --build -d
 ```
 
-Docker binds `127.0.0.1:3000`. For a public site, put an HTTPS reverse proxy in front, set `RCON_PUBLIC_ORIGIN=https://relay.example.com`, and apply request/connection limits at that proxy. No outbound worker endpoint needs configuring. See the [connection guide](app/connection-guide/page.tsx) and [architecture research](docs/connection-research.md).
+Docker binds to `127.0.0.1:3000`. For public hosting, configure HTTPS and the deployment controls described in [the deployment guide](docs/deployment.md) and [.env.example](.env.example).
 
-## Paste JSON
+## Import a connection
 
-Choose **Paste JSON**, paste a configuration, then **Review connection**. The fields are validated and populated; connect only after reviewing them.
+Choose **Paste JSON**, then review the imported values before connecting.
 
 ```json
 {
-  "name": "Friday night competitive",
+  "name": "My server",
   "host": "cs2.example.com",
   "port": 27015,
   "password": "your-rcon-password"
 }
 ```
 
-Also supported:
+Imports also support common field aliases, nested `rcon`/`server` objects, and lists of up to 50 profiles. Importing never automatically remembers passwords.
 
-- Address aliases: `hostname`, `address`, `ip`; embedded `host:port` and `[IPv6]:port`.
-- Port aliases: `rconPort`, `rcon_port`; default `27015` when omitted.
-- Password aliases: `rconPassword`, `rcon_password`; whitespace is preserved.
-- Nested `rcon` / `server` objects, arrays, `{ "servers": [...] }`, and CS2 RCON's safe `{ "profiles": [...] }` exports.
-- Up to 50 profiles per import. Select one to review and connect. Missing passwords can be entered in the form.
+## Privacy and security
 
-Imports never automatically remember passwords or accept an installation secret from the pasted document.
+Passwords stay in memory unless you choose to remember them. Remembered secrets use unencrypted browser storage. Safe profile exports omit passwords and installation keys, but command history may contain sensitive text.
 
-## Connection architecture
+With a hosted connection, the website processes your RCON password. With the helper, RCON runs on your computer. HTTPS protects browser-to-website traffic; **Source RCON itself is unencrypted**. Use a trusted host or VPN and restrict the game server's firewall accordingly.
 
-```text
-Browser ── HTTPS, same origin ──> CS2 RCON's built-in Node route
-                                      │
-                                      └── Source RCON over TCP ──> CS2
-```
+Public deployments need platform/proxy limits and outbound firewall controls in addition to the application's per-process safeguards. See [deployment boundaries](docs/deployment.md#limits-and-data-handling) and [security reporting](SECURITY.md).
 
-An ordinary browser cannot directly open raw TCP sockets. WebSocket, WebTransport and WebRTC require compatible protocols at the other end; native Source RCON does not implement them. Chrome Direct Sockets requires an installed Isolated Web App. The practical browse-and-connect solution is the integrated Node route, not a static browser-only bundle. [Research and primary sources](docs/connection-research.md).
+## Development and releases
 
-Each request connects, authenticates, executes a bounded batch, collects the response, and closes the socket. The user's RCON password is necessary; an additional installation key is not.
-
-**Existing installations:** if `RCON_RELAY_SECRET` was set previously, remove it and restart/redeploy to enable keyless access. Keeping it deliberately protects a private installation; the hosted form always shows the installation access-key field from first load, optional until the runtime capability check confirms it is required. A failed or delayed check never hides the field; the local helper does not use an installation key. Nothing embeds the key in the frontend.
-
-## Prepare your game server
-
-A typical dedicated-server launch includes:
-
-```bash
-./cs2 -dedicated -console -usercon -port 27015 +map de_mirage
-```
-
-Configure the password in the server configuration loaded at startup:
-
-```cfg
-rcon_password "replace-with-a-long-random-password"
-```
-
-Allow the server's **TCP** RCON port through its firewall from the application host. A game's UDP port allowance alone does not enable TCP RCON. The address must be reachable from the application host; this can differ from your browser's network. Some providers expose a proprietary console rather than Source RCON—ask for a native TCP RCON endpoint.
-
-HTTPS protects browser → app. Source RCON does **not** encrypt app → game server. Use a trusted installation, preferably beside the game server or through a private network/VPN, and restrict the game-server firewall to the application's egress address.
-
-### LAN and local servers
-
-For end users, the native helper reaches local and VPN servers without these deployment settings. The settings below apply only when self-hosting the full website.
-
-Development permits RFC1918 and loopback destinations by default. Production blocks them unless both of these are explicitly configured:
-
-```dotenv
-RCON_ALLOW_PRIVATE=true
-RCON_ALLOWED_HOSTS=192.168.1.50
-```
-
-The allowlist must contain the exact host entered by the user; wildcard entries do not grant private-network access. Keep such installations on a trusted network or behind access control. Container loopback refers to the container, not the host or a neighboring container. Link-local metadata, multicast, and reserved destinations remain blocked in all modes.
-
-## Features
-
-- A responsive console workspace with reference-matched neutral glass surfaces, locally served Montserrat/DM Sans typography, and interactive Tasheer particle art with pause/reduced-motion support
-- RCON prompt and live output on the main page immediately after connecting
-- Multiple browser-local server profiles; passwords held in memory by default
-- Inline connection validation and actionable errors, password visibility, JSON import and profile selection
-- Portable foreground helper for Windows/macOS/Linux, with deployment-specific one-line launch commands
-- Players, kick/Steam-ID ban actions, Steam/IP filters, individual and bulk unban
-- Installed maps from `maps *` plus `ds_workshop_listmaps`, favorites, Steam Workshop title lookup and map loading
-- Game-mode staging using `game_type` / `game_mode`, with an explicit map transition
-- Match restart, warmup and pause controls, server broadcast
-- Console, command history and completion, server-synced command catalogue
-- Visibility-aware status polling, multi-packet and UTF-8 RCON responses
-- Clearly labeled interactive demo requiring no server
-- No analytics or external runtime image/font requests
-
-CS2 sometimes exposes unavailable or provisional Steam IDs. Permanent bans are disabled until the player has a trustworthy identity. Standard RCON cannot start an offline process, manage host files, or provide an incoming live chat/log stream. Those capabilities need a game-server plugin or host integration.
-
-## Deployment controls
-
-All settings are optional. See [.env.example](.env.example).
-
-| Variable | Behavior |
-| --- | --- |
-| `RCON_PUBLIC_ORIGIN` | Trusted public origin for a TLS-terminating reverse proxy. |
-| `RCON_ALLOWED_HOSTS` | Restrict destinations to exact hosts or wildcard subdomains. |
-| `RCON_ALLOWED_PORTS` | Restrict to a comma-separated list. Default permits ports 1024–65535. Explicitly list a privileged port if the server uses one. |
-| `RCON_ALLOW_PRIVATE` | Production LAN/loopback access, only with an exact allowed host. |
-| `RCON_TIMEOUT_MS` | Per-operation deadline, 1000–15000 ms; default 6000. |
-| `RCON_RELAY_SECRET` | Optional access key for a private installation; leave unset for keyless use. |
-| `RCON_ALLOW_PRIVATE_DEV=false` | Apply public-destination restrictions in development. |
-
-Vercel's Node runtime supports outbound TCP. It can run this same application without a separate worker; configure its region and egress/firewall policy to suit the game server. A Node server or container offers more predictable network placement. Edge-only and static hosting cannot execute the `node:net` route.
-
-### Limits and data handling
-
-The route validates all DNS results and connects to the exact validated IP. It rejects cross-origin browser requests without trusting forwarded headers, caps the actual streamed JSON body at 100 KB, rejects malformed command batches, enforces a 25-second request deadline, caps responses, and closes sockets on cancellation.
-
-Per Node process, there are at most 12 active requests and 240 requests/minute; per destination, 3 active sockets and 60 requests/minute. Five failed authentications cause a one-minute backoff window. These memory-only limits reset on restart and are **not distributed**. A public multi-instance deployment also needs reverse-proxy/platform limits and outbound firewall rules; origin checks do not authenticate scripts or bots. A rejected late command does not roll back earlier commands in a batch, and actions must not be blindly retried after a timeout.
-
-Profiles and local history remain in this browser. Remembered secrets are plain `localStorage`, not encrypted. Safe exports omit profile passwords and installation keys; command history may itself contain sensitive command text, so review exports before sharing. Requests are not logged by this application and responses are marked `no-store`; configure proxy/platform logging to exclude credentials.
-
-## Validation
-
-```bash
+```sh
 npm run lint
 npm test
 npm run build
+npm run helper:test # requires Go
 ```
 
-Tests include actual TCP packet framing, authentication, response assembly, keyless production requests, optional access control, cancellation, JSON imports, DNS/private-target checks, payload limits, and rate/concurrency guards. CI also exercises the Next.js adapter path used by Vercel, and native helper tests on Linux, macOS and Windows. Developers can run `npm run helper:test` with Go installed; end users never need Go. The local TCP fixture validates the protocol path; real-server and host-specific reachability still require a configured CS2 endpoint.
+See [contributing](CONTRIBUTING.md), [release instructions](docs/releases.md), and [the helper build guide](helper/README.md#build-and-test).
+
+## License
+
+[MIT](LICENSE). Bundled fonts retain their licenses in `public/fonts/`; the helper includes the [Go runtime license](public/relay/LICENSE-GO.txt). Counter-Strike and Steam belong to Valve; this is an independent community project.

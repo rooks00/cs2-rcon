@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { readJsonBody } from "../lib/server/request";
 import { ConnectionLimiter } from "../lib/server/limits";
 
@@ -8,6 +8,18 @@ describe("anonymous connection limits", () => {
     for (const headers of variations) {
       const request = new Request("http://localhost/api/rcon", { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({ data: "x".repeat(100) }) });
       await expect(readJsonBody(request, 50)).rejects.toMatchObject({ status: 413 });
+    }
+  });
+  it("rejects a timed-out body even when its received prefix is valid JSON", async () => {
+    vi.useFakeTimers();
+    try {
+      const body = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode("{}")); } });
+      const request = new Request("http://localhost", { method: "POST", headers: { "Content-Type": "application/json" }, body, duplex: "half" } as RequestInit);
+      const result = expect(readJsonBody(request)).rejects.toMatchObject({ status: 408, code: "REQUEST_TIMEOUT" });
+      await vi.advanceTimersByTimeAsync(5_000);
+      await result;
+    } finally {
+      vi.useRealTimers();
     }
   });
   it("rejects malformed JSON and unsupported media types", async () => {

@@ -49,6 +49,10 @@ export function saveStoredState(state: StoredState): boolean {
 export function exportStoredState(state: StoredState): string {
   const safeState: StoredState = {
     ...state,
+    // Commands and server output can contain passwords, tokens and player IPs.
+    consoleHistory: [],
+    syncedCommands: [],
+    savedCommands: [],
     profiles: state.profiles.map((profile) => {
       const safeProfile = { ...profile };
       delete safeProfile.password;

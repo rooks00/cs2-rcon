@@ -11,7 +11,7 @@ const execute = promisify(execFile);
 
 describe("portable helper distribution", () => {
   it("ships all six executable targets with matching download checksums", async () => {
-    const directory = resolve("public/relay/v0.1.0");
+    const directory = resolve("public/relay/v0.2.0");
     const manifest = JSON.parse(await readFile(join(directory,"manifest.json"),"utf8")) as {
       artifacts: Array<{target:string;file:string;sha256:string;downloadBytes:number;executableBytes:number}>;
     };

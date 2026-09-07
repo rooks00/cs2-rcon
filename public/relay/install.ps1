@@ -1,5 +1,5 @@
 # Relay's temporary native helper. No administrator rights or installed runtime.
-param([Parameter(Mandatory = $true)][string]$Site, [int]$Port = 47391, [switch]$NoOpen)
+param([Parameter(Mandatory = $true)][string]$Site, [int]$Port = 47391, [switch]$NoOpen, [switch]$BrowserConnect)
 $ErrorActionPreference = 'Stop'
 $relaySite = $Site.TrimEnd('/')
 $relayUri = [Uri]$relaySite
@@ -17,7 +17,7 @@ $relayDir = Join-Path ([IO.Path]::GetTempPath()) ('relay-helper-' + [Guid]::NewG
 New-Item -ItemType Directory -Path $relayDir | Out-Null
 try {
     $relayName = "relay-helper-windows-$relayArch.exe"
-    $relayBase = "$relaySite/relay/v0.1.0/$relayName.gz"
+    $relayBase = "$relaySite/relay/v0.2.0/$relayName.gz"
     $relayArchive = Join-Path $relayDir 'helper.gz'
     Write-Host 'Downloading Relay Helper. No installation or administrator privileges required.'
     Invoke-WebRequest -UseBasicParsing -Uri $relayBase -OutFile $relayArchive -TimeoutSec 180
@@ -38,6 +38,7 @@ try {
         } finally { $relayGzip.Dispose() }
     } finally { $relayInput.Dispose() }
     $relayArguments = @('--site', $relaySite, '--port', [string]$Port)
+    if ($BrowserConnect) { $relayArguments += '--browser-connect' }
     if ($NoOpen) { $relayArguments += '--no-open' }
     & $relayBinary @relayArguments
     if ($LASTEXITCODE -ne 0) { throw "Relay Helper exited with code $LASTEXITCODE." }

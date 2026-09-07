@@ -1,5 +1,7 @@
 "use client";
 
+import { fetchRcon } from "@/lib/helper-install";
+
 import {
   Ban,
   Bot,
@@ -134,7 +136,7 @@ function initials(value: string): string {
 }
 
 async function requestRcon(profile: ServerProfile, secrets: Secrets, commands: string[]): Promise<RconCommandResult[]> {
-  const response = await fetch("/api/rcon", {
+  const response = await fetchRcon({
     method: "POST",
     headers: {
       "Content-Type": "application/json",

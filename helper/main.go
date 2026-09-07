@@ -28,23 +28,24 @@ import (
 	"time"
 )
 
-var version = "0.1.0"
+var version = "0.2.0"
 
 const defaultPort = 47391
 const maxBodyBytes = 100_000
 
 type helper struct {
-	site      *url.URL
-	authority string
-	code      string
-	session   string
-	mu        sync.Mutex
-	paired    bool
-	slots     chan struct{}
-	proxy     *httputil.ReverseProxy
-	client    *http.Client
-	ctx       context.Context
-	limits    map[string]*attempts
+	browserToken string
+	site         *url.URL
+	authority    string
+	code         string
+	session      string
+	mu           sync.Mutex
+	paired       bool
+	slots        chan struct{}
+	proxy        *httputil.ReverseProxy
+	client       *http.Client
+	ctx          context.Context
+	limits       map[string]*attempts
 }
 type attempts struct {
 	started            time.Time
@@ -54,6 +55,7 @@ type attempts struct {
 func main() {
 	siteFlag := flag.String("site", "", "Relay website origin (for example https://relay.example.com)")
 	port := flag.Int("port", defaultPort, "loopback HTTP port")
+	browserConnect := flag.Bool("browser-connect", false, "pair the existing website using a temporary token on port 47391")
 	noOpen := flag.Bool("no-open", false, "print the workspace URL without opening a browser")
 	printVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
@@ -70,6 +72,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Choose a local port between 1024 and 65535.")
 		os.Exit(1)
 	}
+	if *browserConnect && *port != defaultPort {
+		fmt.Fprintln(os.Stderr, "Browser connection uses port 47391. Omit --port or use the local workspace instead.")
+		os.Exit(1)
+	}
 	listener, err := net.Listen("tcp4", net.JoinHostPort("127.0.0.1", strconv.Itoa(*port)))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Cannot start Relay Helper on port %d. Close the running helper or choose --port with another free port.\n", *port)
@@ -78,10 +84,16 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	h := newHelper(ctx, site, listener.Addr().String())
+	if *browserConnect {
+		h.browserToken = randomSecret()
+	}
 	server := &http.Server{Handler: h, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 35 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16_384, BaseContext: func(net.Listener) context.Context { return ctx }}
 	launch := "http://" + h.authority + "/start?code=" + h.code
 	fmt.Printf("\n  Relay Helper %s\n\n  Workspace: %s\n\n  RCON runs on this computer. Only UI files and Workshop metadata use %s.\n  Keep this terminal open. Press Ctrl+C to stop.\n\n", version, launch, site.String())
-	if !*noOpen {
+	if *browserConnect {
+		fmt.Printf("  Pair on %s using this temporary token:\n\n  %s\n\n  Only this website origin is permitted. It can access your game server while paired.\n  Paste the token into Relay; keep it private. Restart the helper to revoke it.\n\n", site.String(), h.browserToken)
+	}
+	if !*noOpen && !*browserConnect {
 		if err := openBrowser(launch); err != nil {
 			fmt.Println("Open the workspace link above in your browser.")
 		}
@@ -113,6 +125,14 @@ func parseSite(raw string) (*url.URL, error) {
 	}
 	u.Path = ""
 	u.Host = strings.ToLower(u.Host)
+	// Browser Origin serialization omits default ports.
+	if (u.Scheme == "https" && u.Port() == "443") || (u.Scheme == "http" && u.Port() == "80") {
+		host := u.Hostname()
+		if strings.Contains(host, ":") {
+			host = "[" + host + "]"
+		}
+		u.Host = host
+	}
 	return u, nil
 }
 func randomSecret() string {
@@ -169,6 +189,10 @@ func (h *helper) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Literal loopback Host + random session prevents DNS rebinding and LAN access.
 	if r.Host != h.authority || r.URL.IsAbs() {
 		writeError(w, 403, "HOST_BLOCKED", "Use the loopback workspace URL printed in the terminal.")
+		return
+	}
+	if h.browserToken != "" && r.Header.Get("Origin") == h.site.String() {
+		h.browserRcon(w, r)
 		return
 	}
 	if r.Header.Get("Origin") != "" && r.Header.Get("Origin") != "http://"+h.authority {
@@ -231,6 +255,50 @@ func (h *helper) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.proxy.ServeHTTP(w, r)
+}
+
+// The token is independent of the local workspace cookie and never sent upstream.
+func (h *helper) browserRcon(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Add("Vary", "Origin")
+	if r.URL.Path != "/api/rcon" {
+		writeError(w, 403, "PATH_BLOCKED", "Browser pairing permits only the RCON endpoint.")
+		return
+	}
+	w.Header().Set("Access-Control-Allow-Origin", h.site.String())
+	if r.Method == "OPTIONS" {
+		method := r.Header.Get("Access-Control-Request-Method")
+		if method != "GET" && method != "POST" {
+			writeError(w, 405, "METHOD_NOT_ALLOWED", "Use GET or POST.")
+			return
+		}
+		for _, header := range strings.Split(r.Header.Get("Access-Control-Request-Headers"), ",") {
+			header = strings.ToLower(strings.TrimSpace(header))
+			if header != "" && header != "authorization" && header != "content-type" {
+				writeError(w, 403, "HEADER_BLOCKED", "Unsupported browser request header.")
+				return
+			}
+		}
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		if r.Header.Get("Access-Control-Request-Private-Network") == "true" {
+			w.Header().Set("Access-Control-Allow-Private-Network", "true")
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte("Bearer "+h.browserToken)) != 1 {
+		writeError(w, 401, "PAIRING_REQUIRED", "Paste the current helper token to connect.")
+		return
+	}
+	switch r.Method {
+	case "GET":
+		writeJSON(w, 200, map[string]any{"ok": true, "transport": "local-tcp", "requiresAccessKey": false, "helperVersion": version, "hostedSite": h.site.String()})
+	case "POST":
+		h.rcon(w, r)
+	default:
+		writeError(w, 405, "METHOD_NOT_ALLOWED", "Use GET or POST.")
+	}
 }
 
 func (h *helper) rcon(w http.ResponseWriter, r *http.Request) {

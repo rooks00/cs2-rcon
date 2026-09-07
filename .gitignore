@@ -4,11 +4,14 @@ out/
 coverage/
 .vercel/
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 *.log
 .DS_Store
 *.tsbuildinfo
 next-env.d.ts
 
 .playwright-cli/
+
+*.pem
+*.key

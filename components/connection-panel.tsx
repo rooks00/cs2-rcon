@@ -5,7 +5,7 @@ import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent 
 import { EXAMPLE_CONNECTION_JSON, parseConnectionJson, parseServerAddress, type ConnectionDetails } from "@/lib/connection-import";
 import type { ServerProfile } from "@/lib/types";
 import { HelperLauncher } from "@/components/helper-launcher";
-import { getKnownLocalHelper, helperWebsiteOrigin, rememberLocalHelper, type LocalHelperMetadata } from "@/lib/helper-install";
+import { disconnectBrowserHelper, fetchRcon, hasBrowserHelper, getKnownLocalHelper, helperWebsiteOrigin, rememberLocalHelper, type LocalHelperMetadata } from "@/lib/helper-install";
 
 export interface ConnectionInput extends ConnectionDetails {
   id?: string;
@@ -70,7 +70,7 @@ export function ConnectionPanel({ profiles, activeProfile, secrets, busy, onSave
 
     const readCapabilities = async () => {
       try {
-        const response = await fetch("/api/rcon", { cache: "no-store", signal: controller.signal });
+        const response = await fetchRcon({ cache: "no-store", signal: controller.signal });
         if (!response.ok) throw new Error("The installation settings could not be checked.");
         const value: unknown = await response.json();
         if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("The installation returned invalid settings.");
@@ -140,7 +140,15 @@ export function ConnectionPanel({ profiles, activeProfile, secrets, busy, onSave
   const selectMode = (nextMode: "hosted" | "device") => {
     if (busy) return;
     if (usingLocalHelper && nextMode === "hosted") {
-      // Switching transport requires a visible navigation; commands stay on this origin.
+      if (hasBrowserHelper()) {
+        disconnectBrowserHelper();
+        setLocalHelper(null);
+        setHelperUnavailable(false);
+        setMode("hosted");
+        retryCapabilities();
+        return;
+      }
+      // The legacy loopback workspace returns to its configured website.
       window.location.assign(localHelper.site);
       return;
     }
@@ -235,7 +243,7 @@ export function ConnectionPanel({ profiles, activeProfile, secrets, busy, onSave
           <div className="connection-demo"><span>Just looking around?</span><button className="text-button" onClick={onDemo} disabled={busy}><Sparkles size={14} />Explore demo<ArrowRight size={14} /></button></div>
         </div>
 
-        {!usingLocalHelper && <div className="connection-mode-panel" data-active={!showConnectionForm} aria-hidden={showConnectionForm} inert={showConnectionForm}><HelperLauncher /></div>}
+        {!usingLocalHelper && <div className="connection-mode-panel" data-active={!showConnectionForm} aria-hidden={showConnectionForm} inert={showConnectionForm}><HelperLauncher onPaired={(helper) => { setLocalHelper(helper); setHelperUnavailable(false); retryCapabilities(); }} /></div>}
       </div>
     </div>
   );

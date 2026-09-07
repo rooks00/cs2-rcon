@@ -341,3 +341,72 @@ func fmtJSON(host, port string) string {
 	data, _ := json.Marshal(map[string]any{"host": host, "port": json.Number(port), "password": "correct", "commands": []string{"status"}})
 	return string(data)
 }
+
+func TestBrowserPairingBoundary(t *testing.T) {
+	h, server, client, upstream := testHelper(t)
+	h.browserToken = randomSecret()
+	origin := h.site.String()
+	for _, tc := range []struct {
+		name, method, path, origin, token, host string
+		status                                  int
+	}{
+		{"paired", "GET", "/api/rcon", origin, h.browserToken, "", 200},
+		{"missing token", "GET", "/api/rcon", origin, "", "", 401},
+		{"wrong token", "GET", "/api/rcon", origin, "wrong", "", 401},
+		{"wrong origin", "GET", "/api/rcon", "https://other.example", h.browserToken, "", 403},
+		{"no origin", "GET", "/api/rcon", "", h.browserToken, "", 401},
+		{"wrong host", "GET", "/api/rcon", origin, h.browserToken, "other.example", 403},
+		{"proxy path", "GET", "/", origin, h.browserToken, "", 403},
+		{"workshop path", "POST", "/api/workshop", origin, h.browserToken, "", 403},
+		{"invalid method", "DELETE", "/api/rcon", origin, h.browserToken, "", 405},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			response := request(t, client, tc.method, server.URL+tc.path, "", map[string]string{"Origin": tc.origin, "Authorization": "Bearer " + tc.token, "Host": func() string {
+				if tc.host != "" {
+					return tc.host
+				}
+				return h.authority
+			}()})
+			if response.StatusCode != tc.status {
+				t.Fatalf("status %d, expected %d", response.StatusCode, tc.status)
+			}
+			if response.Header.Get("Access-Control-Allow-Credentials") != "" || len(response.Cookies()) != 0 {
+				t.Fatal("browser pairing must not use cookies")
+			}
+		})
+	}
+	if len(upstream) != 0 {
+		t.Fatal("paired requests reached upstream")
+	}
+}
+
+func TestBrowserPairingPreflight(t *testing.T) {
+	h, server, client, _ := testHelper(t)
+	h.browserToken = randomSecret()
+	for _, tc := range []struct {
+		method, headers string
+		status          int
+	}{
+		{"POST", "authorization, content-type", 204},
+		{"GET", "authorization", 204},
+		{"DELETE", "authorization", 405},
+		{"POST", "cookie", 403},
+	} {
+		response := request(t, client, "OPTIONS", server.URL+"/api/rcon", "", map[string]string{"Origin": h.site.String(), "Access-Control-Request-Method": tc.method, "Access-Control-Request-Headers": tc.headers, "Access-Control-Request-Private-Network": "true"})
+		if response.StatusCode != tc.status {
+			t.Fatalf("status %d, expected %d", response.StatusCode, tc.status)
+		}
+		if tc.status == 204 && (response.Header.Get("Access-Control-Allow-Origin") != h.site.String() || response.Header.Get("Access-Control-Allow-Private-Network") != "true") {
+			t.Fatal("missing scoped network preflight")
+		}
+	}
+}
+
+func TestSiteNormalizesDefaultPortForBrowserOrigin(t *testing.T) {
+	for raw, expected := range map[string]string{"https://relay.example:443": "https://relay.example", "http://localhost:80": "http://localhost", "http://[::1]:80": "http://[::1]"} {
+		site, err := parseSite(raw)
+		if err != nil || site.String() != expected {
+			t.Fatalf("origin normalization failed for %s", raw)
+		}
+	}
+}

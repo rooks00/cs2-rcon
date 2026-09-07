@@ -4,6 +4,16 @@ import { POST } from "../app/api/workshop/route";
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Workshop metadata route", () => {
+  it("enforces the streamed body size independently of Content-Length", async () => {
+    const steamFetch = vi.fn();
+    vi.stubGlobal("fetch", steamFetch);
+    const response = await POST(new Request("http://localhost/api/workshop", {
+      method: "POST", headers: { "Content-Type": "application/json", "Content-Length": "1" },
+      body: JSON.stringify({ ids: [], padding: "x".repeat(20_001) }),
+    }));
+    expect(response.status).toBe(413);
+    expect(steamFetch).not.toHaveBeenCalled();
+  });
   it("returns only safe CS2 Workshop titles for requested IDs", async () => {
     const steamFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       response: {

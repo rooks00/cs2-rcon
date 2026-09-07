@@ -16,7 +16,11 @@ export async function readJsonBody(request: Request, limit = 100_000): Promise<u
   if (!reader) throw new RequestError(400, "INVALID_JSON", "A JSON request body is required.");
   const chunks: Uint8Array[] = [];
   let length = 0;
-  const timer = setTimeout(() => void reader.cancel().catch(() => undefined), 5_000);
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    void reader.cancel().catch(() => undefined);
+  }, 5_000);
   try {
     while (true) {
       const { done, value } = await reader.read();
@@ -28,6 +32,7 @@ export async function readJsonBody(request: Request, limit = 100_000): Promise<u
       }
       chunks.push(value);
     }
+    if (timedOut) throw new RequestError(408, "REQUEST_TIMEOUT", "The request body took too long to arrive.");
     return JSON.parse(Buffer.concat(chunks).toString("utf8"));
   } catch (error) {
     if (error instanceof RequestError) throw error;
