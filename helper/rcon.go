@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/netip"
 	"strings"
-	"syscall"
 	"time"
 	"unicode/utf8"
 )
@@ -277,7 +276,7 @@ func (s *session) execute(id int32, command string) (commandResult, error) {
 			}
 			var network net.Error
 			quiet := errors.As(err, &network) && network.Timeout()
-			closed := errors.Is(err, io.EOF) || errors.Is(err, syscall.ECONNRESET)
+			closed := errors.Is(err, io.EOF) || errors.Is(err, peerResetError)
 			if received && (quiet || closed) {
 				break
 			}
