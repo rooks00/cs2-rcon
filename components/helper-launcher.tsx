@@ -72,14 +72,15 @@ export function HelperLauncher({ origin, onPaired }: { origin?: string; onPaired
     </div>
     <div className="helper-command"><div><SquareTerminal size={14} /><span>{platform === "windows" ? "PowerShell" : "Terminal"}</span><button type="button" onClick={() => void copy()} disabled={!site} aria-label="Copy helper command">{copied ? <Check size={14} /> : <Copy size={14} />}{copied ? "Copied" : "Copy"}</button></div><pre tabIndex={0} aria-live="polite"><code>{command}</code></pre></div>
     {copyError && <p className="helper-copy-error" role="status">Select the command above and copy it into your terminal.</p>}
-    <ol className="helper-steps"><li>Run the command in {platform === "windows" ? "PowerShell" : "Terminal"}.</li><li>{onPaired ? "Paste the pairing token below. Allow local-network access if asked." : "Enter your server details in the local workspace that opens."}</li><li>Keep the terminal open. Press <kbd>Ctrl+C</kbd> to stop.</li></ol>
-    {onPaired && <div className="helper-pairing">
-      <label className="field"><span>Pairing token from your terminal</span><input type="password" autoComplete="off" spellCheck={false} value={token} onChange={(event) => setToken(event.target.value)} placeholder="Paste the helper token" disabled={pairing} /></label>
-      <button type="button" className="button button--primary" disabled={pairing || !token.trim()} onClick={() => void pair()}>{pairing ? "Connecting…" : "Connect this tab"}</button>
-      <p className="helper-footnote">Pair only with a website you trust: it can send RCON commands through your device while connected. The token stays in this tab’s memory. Refresh or stop the helper to disconnect.</p>
+    {onPaired ? <form className="helper-pairing" onSubmit={(event) => { event.preventDefault(); if (!pairing && token.trim()) void pair(); }}>
+      <label className="field"><span>Pairing token</span><div><input type="password" autoComplete="off" spellCheck={false} value={token} onChange={(event) => setToken(event.target.value)} placeholder="Paste the helper token" disabled={pairing} /></div></label>
+      <p className="helper-pairing__prompt">Run the command, paste its token, and connect.</p>
+      <button type="submit" className="button button--primary connect-submit" disabled={pairing || !token.trim()}>{pairing ? "Connecting…" : "Connect this tab"}</button>
       {pairError && <p className="helper-copy-error" role="alert">{pairError}</p>}
-    </div>}
-    <p className="helper-footnote"><Check size={13} />No Docker, Node.js, admin rights, or background service.</p>
-    <p className="helper-footnote">The helper downloads to a temporary folder and checks its checksum before running. The website supplies the UI; RCON traffic stays on your computer.</p>
+    </form> : <>
+      <ol className="helper-steps"><li>Run the command in {platform === "windows" ? "PowerShell" : "Terminal"}.</li><li>Enter your server details in the local workspace that opens.</li><li>Keep the terminal open. Press <kbd>Ctrl+C</kbd> to stop.</li></ol>
+      <p className="helper-footnote"><Check size={13} />No Docker, Node.js, admin rights, or background service.</p>
+      <p className="helper-footnote">The helper downloads to a temporary folder and checks its checksum before running. The website supplies the UI; RCON traffic stays on your computer.</p>
+    </>}
   </section>;
 }
