@@ -28,7 +28,7 @@ async function fixture(silent = false) {
     if (silent) return;
     const decoder = new RconPacketDecoder();
     socket.on("data", (data) => {
-      for (const packet of decoder.feed(data)) {
+      for (const packet of decoder.feed(typeof data === "string" ? Buffer.from(data) : data)) {
         if (packet.type === 3) socket.write(encodeRconPacket(2, packet.body.toString() === "correct" ? packet.id : -1, ""));
         else if (packet.type === 2) {
           received.push(packet.body.toString());

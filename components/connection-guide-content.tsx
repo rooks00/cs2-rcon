@@ -127,7 +127,7 @@ export function ConnectionGuideContent({ onBack, helperOrigin }: ConnectionGuide
         <details className="guide-detail">
           <summary>Host the full website yourself<ChevronDown size={16} /></summary>
           <div>
-            <p>With the project checked out and Node.js 22 or newer installed, run:</p>
+            <p>With the project checked out and Node.js 26 installed, run:</p>
             <GuideCode title="Start the website" value={'npm ci\nnpm run build\nnpm start'} />
             <p>Open <code>http://localhost:3000</code>. The repository also includes an optional Docker setup: <code>docker compose up --build -d</code>.</p>
             <p>For a public installation, use HTTPS, set <code>RCON_PUBLIC_ORIGIN</code> to the website’s origin, and apply request and connection limits at your reverse proxy.</p>

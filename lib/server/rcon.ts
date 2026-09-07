@@ -136,7 +136,7 @@ class RconSession {
         reject(new RconError("CONNECT_TIMEOUT", "The game server did not accept the TCP connection in time."));
       }, this.target.timeoutMs);
 
-      socket.on("data", (chunk) => this.onData(chunk));
+      socket.on("data", (chunk) => this.onData(typeof chunk === "string" ? Buffer.from(chunk) : chunk));
       socket.on("error", (error) => {
         const wrapped = new RconError(settled ? "CONNECTION_CLOSED" : "CONNECT_FAILED", friendlySocketError(error));
         this.onTerminalError(wrapped);

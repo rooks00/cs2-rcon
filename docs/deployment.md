@@ -1,6 +1,6 @@
 # Deployment guide
 
-The website needs a Node.js runtime with outbound TCP support. Static and edge-only hosts cannot run its RCON route. The Docker build uses Node 22 and enables `RELAY_STANDALONE=1`; leave that variable unset on ordinary Node and Vercel deployments.
+The website needs a Node.js runtime with outbound TCP support. Static and edge-only hosts cannot run its RCON route. The Docker build uses Node 26 and enables `RELAY_STANDALONE=1`; leave that variable unset on ordinary Node and Vercel deployments.
 
 For a public deployment, put an HTTPS reverse proxy in front of the application, set `RCON_PUBLIC_ORIGIN` to its exact public origin, and configure request limits and outbound firewall rules. The included Compose file binds only to `127.0.0.1:3000`.
 
@@ -64,3 +64,9 @@ The route validates all DNS results and connects to the exact validated IP. It r
 Per Node process, there are at most 12 active requests and 240 requests/minute; per destination, 3 active sockets and 60 requests/minute. Five failed authentications cause a one-minute backoff window. These memory-only limits reset on restart and are **not distributed**. A public multi-instance deployment also needs reverse-proxy/platform limits and outbound firewall rules; origin checks do not authenticate scripts or bots. A rejected late command does not roll back earlier commands in a batch, and actions must not be blindly retried after a timeout.
 
 Profiles and local history remain in this browser. Remembered secrets are plain `localStorage`, not encrypted. Safe exports omit profile passwords and installation keys; command history may itself contain sensitive command text, so review exports before sharing. Requests are not logged by this application and responses are marked `no-store`; configure proxy/platform logging to exclude credentials.
+
+## Node runtime
+
+Development and Docker use Node 26 (`nvm use` reads `.nvmrc`). CI tests Node 26 and Node 24. Vercel Functions currently supports Node 24, so `engines.node` permits both major versions to keep hosted deployments working. Vercel selects its newest available compatible runtime; upgrade its runtime to 26 when Functions supports it. Node 26 support in Vercel Sandbox is separate from Functions.
+
+See [Vercel’s supported Functions runtimes](https://vercel.com/docs/functions/runtimes/node-js/node-js-versions).

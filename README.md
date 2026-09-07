@@ -30,7 +30,7 @@ Source RCON cannot start an offline game server or manage its files.
 
 ## Run locally
 
-Requires Node.js 22 or newer and npm.
+Requires Node.js 26 and npm.
 
 ```sh
 npm ci
