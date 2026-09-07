@@ -172,6 +172,9 @@ svg { flex-shrink: 0; }
 .helper-command button { display: flex; align-items: center; gap: 5px; margin-left: auto; padding: 0; border: 0; background: none; color: var(--text-soft); font-size: 12px; }
 .helper-command pre { padding: 17px 15px; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); font-size: 12px; line-height: 1.85; }
 .helper-command code { font-size: inherit; }
+.helper-pairing { display: grid; gap: 16px; margin-top: 24px; }
+.helper-pairing__prompt { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.helper-pairing .helper-copy-error { margin-top: 0; }
 .helper-steps { padding-left: 18px; margin: 20px 0; color: var(--text-soft); font-size: 13px; line-height: 1.8; }
 .helper-steps li + li { margin-top: 8px; }
 .helper-steps li::marker { color: var(--muted); }
