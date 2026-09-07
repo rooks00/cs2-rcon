@@ -4,7 +4,7 @@ Open an issue describing a bug or proposed change, or submit a focused pull requ
 
 ## Local development
 
-Use Node.js 22 or newer. Run `npm ci` and `npm run dev`. Read [AGENTS.md](AGENTS.md) and the installed Next.js documentation before changing framework code: this project uses APIs that may differ from older releases.
+Use Node.js 26. Run `npm ci` and `npm run dev`. Read [AGENTS.md](AGENTS.md) and the installed Next.js documentation before changing framework code: this project uses APIs that may differ from older releases.
 
 Before submitting changes, run:
 

@@ -31,7 +31,7 @@ describe("executeRconCommands", () => {
       const decoder = new RconPacketDecoder();
       let pending: { id: number; command: string } | null = null;
       socket.on("data", (chunk) => {
-        for (const packet of decoder.feed(chunk)) {
+        for (const packet of decoder.feed(typeof chunk === "string" ? Buffer.from(chunk) : chunk)) {
           if (packet.type === 3) {
             const response = Buffer.concat([encodeRconPacket(0, packet.id, ""), encodeRconPacket(2, packet.id, "")]);
             socket.write(response.subarray(0, 9));
@@ -67,7 +67,7 @@ describe("executeRconCommands", () => {
       sockets.add(socket);
       const decoder = new RconPacketDecoder();
       socket.on("data", (chunk) => {
-        for (const packet of decoder.feed(chunk)) {
+        for (const packet of decoder.feed(typeof chunk === "string" ? Buffer.from(chunk) : chunk)) {
           if (packet.type === 3) socket.write(encodeRconPacket(2, -1, ""));
         }
       });
@@ -86,7 +86,7 @@ describe("executeRconCommands", () => {
       sockets.add(socket);
       const decoder = new RconPacketDecoder();
       socket.on("data", (chunk) => {
-        for (const packet of decoder.feed(chunk)) {
+        for (const packet of decoder.feed(typeof chunk === "string" ? Buffer.from(chunk) : chunk)) {
           if (packet.type === 3) socket.write(Buffer.concat([encodeRconPacket(0, packet.id, ""), encodeRconPacket(2, packet.id, "")]));
           else if (packet.type === 2 && packet.body.toString().startsWith("host_workshop_map")) socket.destroy();
         }

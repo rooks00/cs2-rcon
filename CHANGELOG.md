@@ -5,6 +5,8 @@ minor releases may include breaking changes; patches contain compatible fixes.
 
 ## Unreleased
 
+- Node 26 development/container runtime and Node 26 types, with Node 24 compatibility for Vercel Functions.
+
 - Public project documentation, MIT license, and security guidance.
 - Verified, tag-triggered Docker Hub releases.
 - Same-tab device pairing with native helper 0.2.0 and a local workspace fallback.
