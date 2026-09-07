@@ -9,6 +9,7 @@ minor releases may include breaking changes; patches contain compatible fixes.
 - Verified, tag-triggered Docker Hub releases.
 - Same-tab device pairing with native helper 0.2.0 and a local workspace fallback.
 - Bounded Workshop requests and safer configuration exports.
+- Helper 0.2.1 recognizes Windows connection resets after map-change commands.
 
 ## 0.1.0
 

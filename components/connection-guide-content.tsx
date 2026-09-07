@@ -109,13 +109,15 @@ export function ConnectionGuideContent({ onBack, helperOrigin }: ConnectionGuide
           <summary>Passwords and local data<ChevronDown size={16} /></summary>
           <div>
             <p>With the hosted connection, your password passes through this website’s server to authenticate with CS2. With the helper, passwords and RCON commands travel directly from your computer to the game server. The website still supplies the interface and optional Workshop titles.</p>
-            <p>Passwords stay out of browser storage unless you choose <strong>Remember password on this device</strong>. A remembered password is stored without encryption. Helper and hosted profiles are separate because they belong to different browser origins.</p>
+            <p>Passwords stay out of browser storage unless you choose <strong>Remember password on this device</strong>. A remembered password is stored without encryption. Same-tab pairing uses this website’s profiles; the separate local workspace has its own profiles.</p>
             <p>HTTPS protects the browser’s connection to this website. Source RCON does not encrypt the final TCP connection to your game server; use a trusted host or private network.</p>
           </div>
         </details>
         <details className="guide-detail">
           <summary>About the temporary helper<ChevronDown size={16} /></summary>
           <div>
+            <p>To stay on this website, choose <strong>Use this device</strong> in the connection panel, run its command, and paste the terminal’s pairing token. Allow local-network access if your browser asks. If that connection is blocked, use the command above to open the local workspace instead.</p>
+            <p>Pair only with a website you trust: it can send RCON commands through your device while connected. The pairing token stays in this tab’s memory. Refresh to disconnect the tab, or stop the helper to revoke the token.</p>
             <p>The command downloads an approximately 4 MB native app to a temporary folder, verifies its checksum, and opens a local workspace. It supports Intel/AMD and ARM64 on Windows, macOS, and Linux.</p>
             <p>A one-time local link pairs your browser automatically. Keep the terminal open while you work; <kbd>Ctrl+C</kbd> stops the helper. Temporary files are removed on normal exit, and no background service is installed.</p>
             <p>The executables are unsigned. Review any operating-system prompt normally. The checksum detects a damaged download; it does not replace trusting the website that provides it.</p>
