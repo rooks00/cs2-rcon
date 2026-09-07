@@ -52,7 +52,7 @@ after the image publishes successfully.
 
 ## Native helper
 
-The helper is versioned separately from the web app: currently helper `0.2.1`
+The helper is versioned separately from the web app: currently helper `0.2.2`
 and application `0.1.0`. For a helper release,
 update the version in `scripts/build-helper.mjs`, `helper/main.go`, and both
 `public/relay/install.*` scripts together. Update the artifact directory in
