@@ -62,3 +62,6 @@ jobs:
       - name: Test the native helper
         working-directory: helper
         run: go test -race ./...
+      - name: Check repeated map-change disconnects
+        working-directory: helper
+        run: go test -race -run TestTransitionDisconnect -count=50 ./...

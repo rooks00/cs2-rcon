@@ -12,6 +12,26 @@ import (
 	"time"
 )
 
+type observedConn struct {
+	net.Conn
+	readErr, writeErr error
+}
+
+func (c *observedConn) Read(p []byte) (int, error) {
+	n, err := c.Conn.Read(p)
+	if err != nil {
+		c.readErr = err
+	}
+	return n, err
+}
+func (c *observedConn) Write(p []byte) (int, error) {
+	n, err := c.Conn.Write(p)
+	if err != nil {
+		c.writeErr = err
+	}
+	return n, err
+}
+
 // Return a specific OS socket error without depending on TCP close timing.
 type disconnectConn struct {
 	net.Conn
