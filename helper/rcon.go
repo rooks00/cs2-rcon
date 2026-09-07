@@ -200,6 +200,10 @@ func executeCommands(ctx context.Context, target, password string, commands []st
 		return nil, socketFailure(ctx, err, "CONNECT")
 	}
 	defer conn.Close()
+	return executeSession(ctx, conn, password, commands)
+}
+
+func executeSession(ctx context.Context, conn net.Conn, password string, commands []string) ([]commandResult, error) {
 	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
 	defer stop()
 	s := &session{conn: conn, ctx: ctx}
@@ -210,7 +214,7 @@ func executeCommands(ctx context.Context, target, password string, commands []st
 	id := int32(binary.LittleEndian.Uint32(seed)&0x3fffffff) + 100
 	authDeadline := time.Now().Add(6 * time.Second)
 	s.deadline(authDeadline)
-	if err = s.write(3, id, []byte(password)); err != nil {
+	if err := s.write(3, id, []byte(password)); err != nil {
 		return nil, socketFailure(ctx, err, "AUTH")
 	}
 	for {
@@ -276,7 +280,7 @@ func (s *session) execute(id int32, command string) (commandResult, error) {
 			}
 			var network net.Error
 			quiet := errors.As(err, &network) && network.Timeout()
-			closed := errors.Is(err, io.EOF) || errors.Is(err, peerResetError)
+			closed := errors.Is(err, io.EOF) || isPeerDisconnect(err)
 			if received && (quiet || closed) {
 				break
 			}
