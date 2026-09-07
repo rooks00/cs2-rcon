@@ -28,7 +28,7 @@ import (
 	"time"
 )
 
-var version = "0.2.0"
+var version = "0.2.1"
 
 const defaultPort = 47391
 const maxBodyBytes = 100_000
