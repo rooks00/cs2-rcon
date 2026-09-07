@@ -300,9 +300,15 @@ func TestCancellationClosesPendingAuthentication(t *testing.T) {
 }
 func TestTransitionDisconnect(t *testing.T) {
 	target, _, _ := tcpFixture(t, "transition")
-	results, err := executeCommands(context.Background(), target, "correct", []string{"changelevel de_nuke"})
+	conn, err := net.DialTimeout("tcp", target, time.Second)
 	if err != nil {
 		t.Fatal(err)
+	}
+	defer conn.Close()
+	observed := &observedConn{Conn: conn}
+	results, err := executeSession(context.Background(), observed, "correct", []string{"changelevel de_nuke"})
+	if err != nil {
+		t.Fatalf("%v (socket read: %v; socket write: %v)", err, observed.readErr, observed.writeErr)
 	}
 	if !strings.Contains(results[0].Response, "dispatched") {
 		t.Fatal("transition was not acknowledged")
