@@ -19,7 +19,7 @@ trap 'rm -rf "$relay_dir"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM HUP
 relay_name="relay-helper-$relay_os-$relay_arch"
-relay_base="$relay_site/relay/v0.2.0/$relay_name.gz"
+relay_base="$relay_site/relay/v0.2.1/$relay_name.gz"
 printf '%s\n' 'Downloading Relay Helper. No installation or administrator privileges required.'
 curl --fail --silent --show-error --location --connect-timeout 15 --max-time 180 "$relay_base" -o "$relay_dir/helper.gz"
 curl --fail --silent --show-error --location --connect-timeout 15 --max-time 30 "$relay_base.sha256" -o "$relay_dir/checksum"

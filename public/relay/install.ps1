@@ -17,7 +17,7 @@ $relayDir = Join-Path ([IO.Path]::GetTempPath()) ('relay-helper-' + [Guid]::NewG
 New-Item -ItemType Directory -Path $relayDir | Out-Null
 try {
     $relayName = "relay-helper-windows-$relayArch.exe"
-    $relayBase = "$relaySite/relay/v0.2.0/$relayName.gz"
+    $relayBase = "$relaySite/relay/v0.2.1/$relayName.gz"
     $relayArchive = Join-Path $relayDir 'helper.gz'
     Write-Host 'Downloading Relay Helper. No installation or administrator privileges required.'
     Invoke-WebRequest -UseBasicParsing -Uri $relayBase -OutFile $relayArchive -TimeoutSec 180

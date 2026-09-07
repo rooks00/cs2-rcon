@@ -4,7 +4,7 @@ import { mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { gzipSync } from "node:zlib";
 import { resolve } from "node:path";
 
-const version = "0.2.0";
+const version = "0.2.1";
 const go = process.env.RELAY_GO || "go";
 const folder = resolve(`public/relay/v${version}`);
 await mkdir(folder, { recursive: true });
