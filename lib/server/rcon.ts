@@ -113,6 +113,7 @@ class RconSession {
   private requestId = Math.floor(Math.random() * 1_000_000) + 100;
   private receivedBytes = 0;
   private readonly abort = () => {
+    this.queue.length = 0;
     this.onTerminalError(new RconError("REQUEST_TIMEOUT", "The connection request timed out or was cancelled."));
     this.socket?.destroy();
   };
@@ -188,9 +189,11 @@ class RconSession {
     let responseBytes = 0;
     let truncated = false;
     let receivedResponse = false;
+    let previousWasEmpty = false;
 
+    // A transition is only dispatched once the command itself has been written.
+    await this.write(encodeRconPacket(SERVERDATA_EXECCOMMAND, commandId, command));
     try {
-      await this.write(encodeRconPacket(SERVERDATA_EXECCOMMAND, commandId, command));
       // Valve Source servers answer this probe after every response fragment. It is
       // the only reliable delimiter when a command returns exactly 4096-byte parts.
       await this.write(encodeRconPacket(SERVERDATA_RESPONSE_VALUE, commandId, ""));
@@ -220,12 +223,12 @@ class RconSession {
       if (packet.type !== SERVERDATA_RESPONSE_VALUE || packet.id !== commandId) continue;
       receivedResponse = true;
 
-      const previous = chunks.at(-1);
-      if (previous?.length === 0 && isTerminator(packet.body)) {
-        chunks.pop();
+      if (previousWasEmpty && isTerminator(packet.body)) {
         break;
       }
+      previousWasEmpty = packet.body.length === 0;
 
+      if (packet.body.length === 0) continue;
       if (responseBytes < MAX_RESPONSE_BYTES) {
         const available = MAX_RESPONSE_BYTES - responseBytes;
         chunks.push(packet.body.subarray(0, available));
@@ -261,6 +264,7 @@ class RconSession {
   }
 
   private async write(packet: Buffer): Promise<void> {
+    if (this.terminalError) throw this.terminalError;
     const socket = this.socket;
     if (!socket || socket.destroyed || !socket.writable) {
       throw new RconError("CONNECTION_CLOSED", "The RCON connection is not writable.");
@@ -290,10 +294,14 @@ class RconSession {
   private onData(chunk: Buffer): void {
     try {
       this.receivedBytes += chunk.length;
-      if (this.receivedBytes > 4_000_000 || this.queue.length > 4_096) {
+      if (this.receivedBytes > 4_000_000) {
         throw new RconError("INVALID_PACKET", "The server exceeded the session response limit.");
       }
-      this.queue.push(...this.decoder.feed(chunk));
+      const packets = this.decoder.feed(chunk);
+      if (this.queue.length + packets.length > 4_096) {
+        throw new RconError("INVALID_PACKET", "The server exceeded the session packet limit.");
+      }
+      this.queue.push(...packets);
       this.pumpQueue();
     } catch (error) {
       this.onTerminalError(error instanceof Error ? error : new Error("Invalid RCON response."));

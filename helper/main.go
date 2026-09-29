@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"mime"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -28,7 +29,7 @@ import (
 	"time"
 )
 
-var version = "0.2.2"
+var version = "0.2.3"
 
 const defaultPort = 47391
 const maxBodyBytes = 100_000
@@ -113,7 +114,7 @@ func main() {
 
 func parseSite(raw string) (*url.URL, error) {
 	u, err := url.Parse(raw)
-	if err != nil || u.Host == "" || u.User != nil || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" {
+	if err != nil || u.Host == "" || u.User != nil || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" || u.ForceQuery || u.RawPath != "" {
 		return nil, errors.New("Pass --site with your Relay website origin, for example https://relay.example.com")
 	}
 	local := u.Hostname() == "localhost" || net.ParseIP(u.Hostname()) != nil && net.ParseIP(u.Hostname()).IsLoopback()
@@ -164,8 +165,8 @@ func newHelper(ctx context.Context, site *url.URL, authority string) *helper {
 		response.Header.Del("Set-Cookie")
 		// Public asset caching is fine; the local session is never part of the cache.
 		if response.StatusCode >= 300 && response.StatusCode < 400 {
-			target, err := response.Location()
-			if err == nil && target.IsAbs() {
+			target, err := url.Parse(response.Header.Get("Location"))
+			if err != nil || target.IsAbs() || target.Host != "" {
 				return errors.New("unexpected website redirect")
 			}
 		}
@@ -302,10 +303,6 @@ func (h *helper) browserRcon(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *helper) rcon(w http.ResponseWriter, r *http.Request) {
-	if !strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "application/json") {
-		writeError(w, 415, "INVALID_CONTENT_TYPE", "Send a JSON request.")
-		return
-	}
 	select {
 	case h.slots <- struct{}{}:
 		defer func() { <-h.slots }()
@@ -314,18 +311,7 @@ func (h *helper) rcon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var input commandRequest
-	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes))
-	if err := decoder.Decode(&input); err != nil {
-		var large *http.MaxBytesError
-		if errors.As(err, &large) {
-			writeError(w, 413, "REQUEST_TOO_LARGE", "The request exceeds 100 KB.")
-		} else {
-			writeError(w, 400, "INVALID_JSON", "Invalid connection JSON.")
-		}
-		return
-	}
-	if err := decoder.Decode(new(any)); err != io.EOF {
-		writeError(w, 400, "INVALID_JSON", "Send one JSON object.")
+	if !decodeJSON(w, r, &input, maxBodyBytes) {
 		return
 	}
 	if err := input.validate(); err != nil {
@@ -388,12 +374,7 @@ func (h *helper) workshop(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		IDs []string `json:"ids"`
 	}
-	if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
-		writeError(w, 415, "INVALID_CONTENT_TYPE", "Send JSON.")
-		return
-	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 20_000)).Decode(&input); err != nil {
-		writeError(w, 400, "INVALID_JSON", "Invalid Workshop IDs.")
+	if !decodeJSON(w, r, &input, 20_000) {
 		return
 	}
 	if len(input.IDs) > 100 {
@@ -424,10 +405,38 @@ func (h *helper) workshop(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 502, "WORKSHOP_FAILED", "Workshop titles are unavailable.")
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "no-store")
-	_, _ = io.Copy(w, io.LimitReader(response.Body, 100_000))
+	body, err = io.ReadAll(io.LimitReader(response.Body, maxBodyBytes+1))
+	if err != nil || len(body) > maxBodyBytes || !json.Valid(body) {
+		writeError(w, 502, "WORKSHOP_FAILED", "Workshop titles are unavailable.")
+		return
+	}
+	writeJSON(w, 200, json.RawMessage(body))
 }
+
+// Read the complete bounded body so trailing data cannot bypass the size limit.
+func decodeJSON(w http.ResponseWriter, r *http.Request, value any, limit int64) bool {
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || mediaType != "application/json" {
+		writeError(w, 415, "INVALID_CONTENT_TYPE", "Send a JSON request.")
+		return false
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, limit))
+	if err != nil {
+		var large *http.MaxBytesError
+		if errors.As(err, &large) {
+			writeError(w, 413, "REQUEST_TOO_LARGE", "The request exceeds the body size limit.")
+		} else {
+			writeError(w, 400, "INVALID_JSON", "Could not read the JSON request.")
+		}
+		return false
+	}
+	if err := json.Unmarshal(body, value); err != nil || len(body) == 0 || strings.TrimSpace(string(body))[0] != '{' {
+		writeError(w, 400, "INVALID_JSON", "Send one JSON object.")
+		return false
+	}
+	return true
+}
+
 func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")

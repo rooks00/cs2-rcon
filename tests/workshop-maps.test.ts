@@ -3,10 +3,10 @@ import { WORKSHOP_GROUPS, WORKSHOP_MAPS } from "../lib/workshop-maps";
 import { getMapChangeCommand } from "../lib/commands";
 
 describe("supplied Workshop catalog", () => {
-  it("keeps all 60 supplied entries in seven groups, with 59 unique IDs", () => {
+  it("keeps all 61 supplied entries in seven groups, with 60 unique IDs", () => {
     expect(WORKSHOP_GROUPS).toHaveLength(7);
-    expect(WORKSHOP_GROUPS.flatMap((group) => group.maps)).toHaveLength(60);
-    expect(WORKSHOP_MAPS).toHaveLength(59);
+    expect(WORKSHOP_GROUPS.flatMap((group) => group.maps)).toHaveLength(61);
+    expect(WORKSHOP_MAPS).toHaveLength(60);
     for (const map of WORKSHOP_MAPS) {
       expect(getMapChangeCommand(map)).toBe(`host_workshop_map ${map.workshopId}`);
     }

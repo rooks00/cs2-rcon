@@ -25,6 +25,20 @@ describe("anonymous connection limits", () => {
   it("rejects malformed JSON and unsupported media types", async () => {
     await expect(readJsonBody(new Request("http://localhost", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{" }))).rejects.toMatchObject({ code: "INVALID_JSON" });
     await expect(readJsonBody(new Request("http://localhost", { method: "POST", body: "{}" }))).rejects.toMatchObject({ status: 415 });
+    await expect(readJsonBody(new Request("http://localhost", { method: "POST", headers: { "Content-Type": "application/json-invalid" }, body: "{}" }))).rejects.toMatchObject({ status: 415 });
+    await expect(readJsonBody(new Request("http://localhost", { method: "POST", headers: { "Content-Type": "application/json; charset=utf-8" }, body: "{}" }))).resolves.toEqual({});
+  });
+  it("cancels a pending body read when the client disconnects", async () => {
+    const cancelled = vi.fn();
+    const body = new ReadableStream<Uint8Array>({ cancel: cancelled });
+    const controller = new AbortController();
+    const request = new Request("http://localhost", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body, signal: controller.signal, duplex: "half",
+    } as RequestInit);
+    const result = expect(readJsonBody(request)).rejects.toMatchObject({ status: 408, code: "REQUEST_TIMEOUT" });
+    controller.abort();
+    await result;
+    expect(cancelled).toHaveBeenCalledOnce();
   });
   it("bounds concurrent sockets and releases a slot only once", () => {
     const limiter = new ConnectionLimiter();

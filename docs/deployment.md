@@ -63,7 +63,7 @@ The route validates all DNS results and connects to the exact validated IP. It r
 
 Per Node process, there are at most 12 active requests and 240 requests/minute; per destination, 3 active sockets and 60 requests/minute. Five failed authentications cause a one-minute backoff window. These memory-only limits reset on restart and are **not distributed**. A public multi-instance deployment also needs reverse-proxy/platform limits and outbound firewall rules; origin checks do not authenticate scripts or bots. A rejected late command does not roll back earlier commands in a batch, and actions must not be blindly retried after a timeout.
 
-Profiles and local history remain in this browser. Remembered secrets are plain `localStorage`, not encrypted. Safe exports omit profile passwords and installation keys; command history may itself contain sensitive command text, so review exports before sharing. Requests are not logged by this application and responses are marked `no-store`; configure proxy/platform logging to exclude credentials.
+Profiles and local history remain in this browser. Remembered secrets are plain `localStorage`, not encrypted. Safe exports omit profile passwords, installation keys, command history, saved commands, and discovered command values. Local history can still contain sensitive text. Requests are not logged by this application and responses are marked `no-store`; configure proxy/platform logging to exclude credentials.
 
 ## Node runtime
 

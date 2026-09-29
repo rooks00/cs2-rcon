@@ -4,6 +4,19 @@ import { POST } from "../app/api/workshop/route";
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Workshop metadata route", () => {
+  it("bounds the upstream response before parsing unused metadata", async () => {
+    const cancelled = vi.fn();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(new Uint8Array(8_000_001)); },
+      cancel: cancelled,
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(body)));
+    const response = await POST(new Request("http://localhost/api/workshop", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: ["123456"] }),
+    }));
+    expect(response.status).toBe(502);
+    expect(cancelled).toHaveBeenCalledOnce();
+  });
   it("enforces the streamed body size independently of Content-Length", async () => {
     const steamFetch = vi.fn();
     vi.stubGlobal("fetch", steamFetch);

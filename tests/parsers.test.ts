@@ -166,3 +166,13 @@ describe("parseIntegerCvar", () => {
     expect(parseIntegerCvar("Unknown command", "game_mode")).toBeNull();
   });
 });
+
+
+describe("moderation identifiers", () => {
+  it("rejects incomplete Steam IDs in text status and JSON enrichment", () => {
+    expect(parseStatus(STATUS.replace("STEAM_1:1:12345", "STEAM_invalid")).players.some((player) => player.userId === "2")).toBe(false);
+    const snapshot = parseStatus(STATUS);
+    const result = enrichStatusWithJson(snapshot, JSON.stringify({ server: { clients: [{ name: "Player One", steamid: "STEAM_invalid" }] } }));
+    expect(result.players[0].steamId).toBe("STEAM_1:1:12345");
+  });
+});

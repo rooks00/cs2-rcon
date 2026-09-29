@@ -25,6 +25,11 @@ describe("RconPacketDecoder", () => {
 });
 
 describe("executeRconCommands", () => {
+  it("does not dispatch a transition after the request has been cancelled", async () => {
+    await expect(executeRconCommands({
+      host: "127.0.0.1", port: 27015, password: "test", timeoutMs: 1000, signal: AbortSignal.abort(),
+    }, ["changelevel de_dust2"])).rejects.toMatchObject({ code: "REQUEST_TIMEOUT" });
+  });
   it("authenticates, batches commands, and joins split responses", async () => {
     const server = createServer((socket) => {
       sockets.add(socket);
@@ -79,6 +84,33 @@ describe("executeRconCommands", () => {
 
     await expect(executeRconCommands({ host: "127.0.0.1", port: address.port, password: "wrong", timeoutMs: 1000 }, ["status"]))
       .rejects.toMatchObject({ code: "AUTH_FAILED" } satisfies Partial<RconError>);
+  });
+
+  it("recognizes the delimiter at the exact response limit without marking output truncated", async () => {
+    const server = createServer((socket) => {
+      sockets.add(socket);
+      const decoder = new RconPacketDecoder();
+      socket.on("data", (chunk) => {
+        for (const packet of decoder.feed(typeof chunk === "string" ? Buffer.from(chunk) : chunk)) {
+          if (packet.type === 3) socket.write(encodeRconPacket(2, packet.id, ""));
+          if (packet.type === 2) {
+            const part = encodeRconPacket(0, packet.id, "x".repeat(4000));
+            socket.write(Buffer.concat(Array.from({ length: 500 }, () => part)));
+          }
+          if (packet.type === 0) socket.write(Buffer.concat([
+            encodeRconPacket(0, packet.id, ""),
+            encodeRconPacket(0, packet.id, Buffer.from([0, 1, 0, 0])),
+          ]));
+        }
+      });
+    });
+    servers.push(server);
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Missing test address");
+    const [result] = await executeRconCommands({ host: "127.0.0.1", port: address.port, password: "test", timeoutMs: 1000 }, ["status"]);
+    expect(result.response.length).toBe(2_000_000);
+    expect(result.truncated).toBeUndefined();
   });
 
   it("treats an expected RCON disconnect during a level transition as dispatched", async () => {

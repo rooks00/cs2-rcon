@@ -151,7 +151,7 @@ func TestSiteValidation(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, site := range []string{"http://example.com", "https://user:pass@example.com", "https://example.com/path", "https://example.com?token=x", "file:///etc/passwd", "javascript:alert(1)"} {
+	for _, site := range []string{"http://example.com", "https://user:pass@example.com", "https://example.com/path", "https://example.com?token=x", "https://example.com?", "file:///etc/passwd", "javascript:alert(1)"} {
 		if _, err := parseSite(site); err == nil {
 			t.Errorf("bad site accepted: %s", site)
 		}

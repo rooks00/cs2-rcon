@@ -1,5 +1,31 @@
 # Verification
 
+## September 29, 2026 source review
+
+Three parallel reviews covered the TypeScript server, React client, and Go helper/installers, followed by integration checks and a second review of connection lifecycle changes.
+
+Resolved findings:
+
+- **Credential routing and session lifecycle:** switching profiles could combine a new target with old credentials. Profile selection now commits after authentication. Disconnect, switching, unmount, and clearing local data cancel pending RCON requests; stale responses cannot restore an old session or overwrite the new server's data. Status polling no longer overlaps itself.
+- **Untrusted data:** persisted settings now validate nested records, polling intervals, and secret preferences. Moderation identifiers require a complete valid Steam ID. JSON handlers check the exact media type, bound the complete body, and honor cancellation. Workshop upstream bodies are bounded and validated before use.
+- **RCON correctness:** command-write failures no longer report a successful map-transition dispatch. Output truncation no longer interferes with response terminators, terminal errors stop subsequent writes, and decoded packet queues enforce their cap before insertion.
+- **Helper distribution:** helper 0.2.3 fixes JSON validation and proxy redirects. Unix downloads cannot downgrade from HTTPS. Builds derive their version from the Go source, stage all artifacts before publication, clean failed builds, and refuse to overwrite an existing release.
+- **Simplification and assets:** shared bounded JSON handling replaces duplicate parsing. Removed 6,000 unused artwork points (97,245 bytes, 30% of the JSON), with all 14,000 rendered points verified unchanged. No dependencies were added. Historical helper downloads remain available for existing versioned links.
+- **Browser policy and documentation:** disabled object/frame embedding and corrected the safe-export documentation to match its existing exclusions.
+
+Validation for this review:
+
+- Node 26: ESLint and all 105 Vitest tests across 15 files passed, including new regressions and six-platform helper artifact checks.
+- Next production build, TypeScript, hosted-adapter smoke build, and standalone packaging passed.
+- Go 1.27.1: helper race tests and `go vet` passed. All six OS/architecture executables were built; the packaged Linux executable reports 0.2.3. Corrupt installer download rejection and cleanup passed.
+- Chromium against the production build: demo console execution, player search, ban retrieval, server-map sync, game-mode values, opening/cancelling Add Server from demo, disconnect, mobile width, and the connection guide passed. Workshop metadata was mocked for this UI check.
+- Mocked browser connection checks passed for saved profiles, authenticated profile switching, matching target/password pairs, refreshing status, and clearing local data. No JavaScript page exceptions occurred.
+- Production CSP headers and unchanged rendered artwork data were checked. `npm audit` reported zero known vulnerabilities; `git diff --check` passed.
+
+These checks used local fixtures and mocks, not a live CS2 server or a deployed public installation. macOS/Windows binaries were cross-compiled, not executed here. Existing deployment boundaries remain: plaintext Source RCON, opt-in unencrypted browser secrets, unsigned helper downloads, and per-process rather than distributed limits. The static Next pages retain inline bootstrap scripts in their CSP.
+
+## Earlier verification
+
 Verified on September 5, 2026.
 
 - ESLint: passed with no warnings or errors.

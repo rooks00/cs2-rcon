@@ -89,6 +89,7 @@ function isValidHostname(hostname: string): boolean {
 }
 
 export function isPublicAddress(address: string, family: number): boolean {
+  if (isIP(address) !== family) return false;
   if (family === 4) return isPublicIpv4(address);
   if (family !== 6) return false;
   const groups = expandIpv6(address);

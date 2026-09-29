@@ -7,6 +7,8 @@ import { resolve } from "node:path";
 const source = resolve(process.argv[2] || "public/artwork/tasheer-source.webp");
 const destination = resolve(process.argv[3] || "lib/tasheer-cloud.json");
 const count = 20000;
+// Shuffle the full sample before trimming so existing portraits stay stable.
+const renderedCount = 14000;
 let seed = 0x54415348;
 const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
 const { data, info } = await sharp(source).resize({ width: 960, withoutEnlargement: true }).removeAlpha().greyscale().raw().toBuffer({ resolveWithObject: true });
@@ -44,5 +46,5 @@ for (let index = points.length - 1; index > 0; index--) {
   const other = Math.floor(random() * (index + 1));
   [points[index], points[other]] = [points[other], points[index]];
 }
-await writeFile(destination, JSON.stringify({ version: 2, image: { width, height, left: minX, top: minY, right: maxX, bottom: maxY, scale }, description: "One detailed Tasheer performer; coordinates are world units multiplied by 10000; third channel is grayscale luminance.", points }) + "\n");
-console.log(`Sampled ${count} points from ${width}×${height}; subject bounds ${maxX-minX}×${maxY-minY}.`);
+await writeFile(destination, JSON.stringify({ version: 2, image: { width, height, left: minX, top: minY, right: maxX, bottom: maxY, scale }, description: "One detailed Tasheer performer; coordinates are world units multiplied by 10000; third channel is grayscale luminance.", points: points.slice(0, renderedCount) }) + "\n");
+console.log(`Saved ${renderedCount} points from ${width}×${height}; subject bounds ${maxX-minX}×${maxY-minY}.`);

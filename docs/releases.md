@@ -52,11 +52,12 @@ after the image publishes successfully.
 
 ## Native helper
 
-The helper is versioned separately from the web app: currently helper `0.2.2`
+The helper is versioned separately from the web app: currently helper `0.2.3`
 and application `0.1.0`. For a helper release,
-update the version in `scripts/build-helper.mjs`, `helper/main.go`, and both
+update the version in `helper/main.go` and both
 `public/relay/install.*` scripts together. Update the artifact directory in
 `tests/helper-artifacts.test.ts` to the new version. Run `npm run helper:test` and
 `npm run helper:build`, then commit the new `public/relay/vVERSION/` artifacts
-and checksums. Retain older version directories for existing installation links.
+and checksums. The build script reads the Go version constant and refuses to overwrite
+an existing release directory. Retain older version directories for existing installation links.
 Review binary and installer changes before releasing the web app that ships them.

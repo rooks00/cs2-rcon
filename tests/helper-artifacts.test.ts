@@ -11,10 +11,16 @@ const execute = promisify(execFile);
 
 describe("portable helper distribution", () => {
   it("ships all six executable targets with matching download checksums", async () => {
-    const directory = resolve("public/relay/v0.2.2");
+    const directory = resolve("public/relay/v0.2.3");
     const manifest = JSON.parse(await readFile(join(directory,"manifest.json"),"utf8")) as {
+      version: string;
       artifacts: Array<{target:string;file:string;sha256:string;downloadBytes:number;executableBytes:number}>;
     };
+    const helperSource = await readFile(resolve("helper/main.go"), "utf8");
+    expect(helperSource).toContain(`var version = "${manifest.version}"`);
+    for (const installer of ["install.sh", "install.ps1"]) {
+      expect(await readFile(resolve("public/relay", installer), "utf8")).toContain(`/relay/v${manifest.version}/`);
+    }
     expect(manifest.artifacts.map(item=>item.target).sort()).toEqual(["darwin-amd64","darwin-arm64","linux-amd64","linux-arm64","windows-amd64","windows-arm64"]);
     for (const item of manifest.artifacts) {
       const archive = await readFile(join(directory,item.file));

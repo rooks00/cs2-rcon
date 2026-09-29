@@ -17,6 +17,10 @@ describe("relay security", () => {
     expect(isPublicAddress("203.0.113.5", 4)).toBe(false);
   });
 
+  it.each([["8.8.8.", 4], ["8.8.8.8", 6], ["2606:4700:0:0:0:0:0::1111", 6]])("rejects malformed or mismatched address %s", (address, family) => {
+    expect(isPublicAddress(String(address), Number(family))).toBe(false);
+  });
+
   it("allows global IPv6 and blocks local/documentation ranges", () => {
     expect(isPublicAddress("2606:4700:4700::1111", 6)).toBe(true);
     expect(isPublicAddress("::1", 6)).toBe(false);

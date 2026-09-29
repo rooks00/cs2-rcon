@@ -15,6 +15,8 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data:",
       "font-src 'self' data:",
+      "object-src 'none'",
+      "frame-src 'none'",
       `connect-src 'self' http://127.0.0.1:47391${isDevelopment ? " ws: wss:" : ""}`,
       "frame-ancestors 'none'",
       "base-uri 'self'",

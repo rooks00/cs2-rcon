@@ -8,6 +8,9 @@ case "$relay_site" in
   https://*|http://localhost:*|http://127.0.0.1:*|http://\[::1\]:*) ;;
   *) printf '%s\n' 'Pass your HTTPS Relay website as the first argument.' >&2; exit 1 ;;
 esac
+# Production downloads may follow HTTPS redirects, but never downgrade to HTTP.
+relay_protocols='=https'
+case "$relay_site" in http://*) relay_protocols='=http,https' ;; esac
 relay_authority=${relay_site#*://}
 case "$relay_authority" in
   ''|*[!a-zA-Z0-9.\[\]:_-]*) printf '%s\n' 'Use a website origin without a path, query or credentials.' >&2; exit 1 ;;
@@ -19,10 +22,10 @@ trap 'rm -rf "$relay_dir"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM HUP
 relay_name="relay-helper-$relay_os-$relay_arch"
-relay_base="$relay_site/relay/v0.2.2/$relay_name.gz"
+relay_base="$relay_site/relay/v0.2.3/$relay_name.gz"
 printf '%s\n' 'Downloading Relay Helper. No installation or administrator privileges required.'
-curl --fail --silent --show-error --location --connect-timeout 15 --max-time 180 "$relay_base" -o "$relay_dir/helper.gz"
-curl --fail --silent --show-error --location --connect-timeout 15 --max-time 30 "$relay_base.sha256" -o "$relay_dir/checksum"
+curl --proto "$relay_protocols" --proto-redir "$relay_protocols" --fail --silent --show-error --location --connect-timeout 15 --max-time 180 "$relay_base" -o "$relay_dir/helper.gz"
+curl --proto "$relay_protocols" --proto-redir "$relay_protocols" --fail --silent --show-error --location --connect-timeout 15 --max-time 30 "$relay_base.sha256" -o "$relay_dir/checksum"
 relay_expected=$(tr -d '\r\n' < "$relay_dir/checksum")
 if command -v sha256sum >/dev/null 2>&1; then
   relay_actual=$(sha256sum "$relay_dir/helper.gz" | cut -d ' ' -f 1)

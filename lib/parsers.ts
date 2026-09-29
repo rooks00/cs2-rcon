@@ -1,6 +1,8 @@
 import { categorizeMap } from "@/lib/commands";
 import type { BanEntry, ServerMap, ServerSnapshot, SyncedCommand } from "@/lib/types";
 
+const STEAM_ID = /^(?:STEAM_[0-5]:[01]:\d+|\[U:\d+:\d+\]|7656119\d{10})$/i;
+
 const EMPTY_SNAPSHOT: Omit<ServerSnapshot, "raw" | "updatedAt"> = {
   hostname: "Unknown server",
   map: "Unknown",
@@ -78,7 +80,7 @@ export function parseStatus(raw: string): ServerSnapshot {
       if (nameIndex < 1) continue;
 
       const steamIndex = tokens.findIndex(
-        (token, index) => index > nameIndex && (/^STEAM_/i.test(token) || /^\[U:\d+:\d+\]$/i.test(token) || /^7656119\d{10}$/.test(token) || token === "BOT"),
+        (token, index) => index > nameIndex && (STEAM_ID.test(token) || token === "BOT"),
       );
       if (steamIndex < 0) continue;
 
@@ -180,7 +182,7 @@ export function enrichStatusWithJson(snapshot: ServerSnapshot, rawJson: string):
   const clients = Array.isArray(data.clients) ? data.clients.filter((client): client is JsonClient => Boolean(client) && typeof client === "object") : [];
   const used = new Set<number>();
   const isValidSteamId = (value: unknown): value is string =>
-    typeof value === "string" && value !== "0" && value !== "[I:0:0]" && /^(?:STEAM_|\[U:|7656119\d{10}$)/i.test(value);
+    typeof value === "string" && value !== "0" && value !== "[I:0:0]" && STEAM_ID.test(value);
 
   const players = snapshot.players.map((player) => {
     // These are separate snapshots; ordering is not an identity guarantee.

@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { readJsonBody, RequestError } from "@/lib/server/request";
+import { readJsonBody, readJsonStream, RequestError } from "@/lib/server/request";
 import { ConnectionLimiter } from "@/lib/server/limits";
 import { isSameOriginRequest } from "@/lib/server/security";
 
 const metadataLimiter = new ConnectionLimiter();
 
 export const runtime = "nodejs";
-export const maxDuration = 10;
+export const maxDuration = 15;
 
 const NO_STORE_HEADERS = {
   "Cache-Control": "no-store, max-age=0",
@@ -32,32 +32,28 @@ export async function POST(request: Request) {
 }
 
 async function metadata(request: Request) {
-  let ids: string[] = [];
-  try {
-    const body: unknown = await readJsonBody(request, 20_000);
-    if (body && typeof body === "object" && Array.isArray((body as { ids?: unknown }).ids)) {
-      ids = [...new Set((body as { ids: unknown[] }).ids.filter((id): id is string => typeof id === "string" && /^\d{5,20}$/.test(id)))].slice(0, 100);
-    }
-  } catch (error) {
-    if (error instanceof RequestError) throw error;
-    return errorResponse(400, "INVALID_JSON", "The request body is not valid JSON.");
-  }
+  const body = await readJsonBody(request, 20_000);
+  const requestedIds = body && typeof body === "object" && "ids" in body ? body.ids : undefined;
+  const ids = Array.isArray(requestedIds)
+    ? [...new Set(requestedIds.filter((id): id is string => typeof id === "string" && /^\d{5,20}$/.test(id)))].slice(0, 100)
+    : [];
   if (!ids.length) return NextResponse.json({ ok: true, items: [] }, { headers: NO_STORE_HEADERS });
 
   const form = new URLSearchParams({ itemcount: String(ids.length) });
   ids.forEach((id, index) => form.set(`publishedfileids[${index}]`, id));
 
   try {
+    const signal = AbortSignal.any([request.signal, AbortSignal.timeout(8_000)]);
     const steamResponse = await fetch("https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: form,
       cache: "no-store",
       redirect: "error",
-      signal: AbortSignal.timeout(8_000),
+      signal,
     });
     if (!steamResponse.ok) return errorResponse(502, "STEAM_API_ERROR", "Steam did not return Workshop metadata.");
-    const payload: unknown = await steamResponse.json();
+    const payload = await readJsonStream(steamResponse.body, 8_000_000, signal);
     const details = (payload as { response?: { publishedfiledetails?: unknown } })?.response?.publishedfiledetails;
     const items = Array.isArray(details)
       ? details.flatMap((detail) => {

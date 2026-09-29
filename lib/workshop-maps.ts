@@ -13,6 +13,7 @@ export const WORKSHOP_GROUPS: { name: string; maps: ServerMap[] }[] = [
     ["Insertion II", "3236615060"], ["Safehouse", "3542772009"], ["Shortdust", "3618786679"],
     ["Lake", "3219506727"], ["Pool Day (Classic)", "3070923343"], ["Pool Day (Arms Race)", "3263935964"],
     ["fy_iceworld", "3070238628"], ["mini mirage", "3099519038"], ["Brownstone", "3663976049"],
+    ["Pitstop", "3728186403"],
   ]],
   ["Cross-game ports (TF2 / CoD / Skyrim)", [
     ["Junction", "3253069944"], ["Barnblitz", "3493648354"], ["Shipment", "3472828046"], ["Whiterun", "3114023815"],

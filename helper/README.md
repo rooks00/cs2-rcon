@@ -84,9 +84,9 @@ go test -race ./...
 go run . --site http://localhost:3000 --no-open
 ```
 
-From the repository root, `npm run helper:build` cross-compiles all six targets with CGO disabled, strips debug symbols, compresses the executables, and writes checksum files plus a manifest to `public/relay/v0.2.2`. Set `RELAY_GO` to a Go executable path if necessary.
+From the repository root, `npm run helper:build` cross-compiles all six targets with CGO disabled, strips debug symbols, compresses the executables, and writes checksum files plus a manifest to `public/relay/v0.2.3`. Set `RELAY_GO` to a Go executable path if necessary.
 
-Published archives are committed with the source so Vercel can serve them without needing Go at build time. A release rebuild must bump the version in the Go default, build script, and both launchers, then regenerate all six archives. Never replace an already-published version's bytes. The manifest records the exact compiler version used. For the initial builds, the toolchain was Go 1.27.1.
+Published archives are committed with the source so Vercel can serve them without needing Go at build time. A release rebuild must bump the version in the Go default and both launchers, then regenerate all six archives. The build script reads the Go version constant and refuses to replace an existing version directory. Never replace an already-published version's bytes. The manifest records the exact compiler version used. For the initial builds, the toolchain was Go 1.27.1.
 
 CI runs the Go tests on Linux, macOS and Windows. Local validation additionally exercises the packaged Linux binary through the browser and installer. Cross-compilation is not a substitute for running macOS and Windows checks on those systems.
 

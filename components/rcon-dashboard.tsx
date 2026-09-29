@@ -135,7 +135,7 @@ function initials(value: string): string {
   return value.replace(/[^a-z0-9 ]/gi, "").split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "?";
 }
 
-async function requestRcon(profile: ServerProfile, secrets: Secrets, commands: string[]): Promise<RconCommandResult[]> {
+async function requestRcon(profile: ServerProfile, secrets: Secrets, commands: string[], signal?: AbortSignal): Promise<RconCommandResult[]> {
   const response = await fetchRcon({
     method: "POST",
     headers: {
@@ -143,7 +143,7 @@ async function requestRcon(profile: ServerProfile, secrets: Secrets, commands: s
       ...(secrets.relayKey ? { "x-relay-key": secrets.relayKey } : {}),
     },
     cache: "no-store",
-    signal: AbortSignal.timeout(30_000),
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(30_000)]) : AbortSignal.timeout(30_000),
     body: JSON.stringify({
       host: profile.host,
       port: profile.port,
@@ -166,6 +166,7 @@ async function requestWorkshopTitles(ids: string[]): Promise<Record<string, stri
       headers: { "Content-Type": "application/json" },
       cache: "no-store",
       body: JSON.stringify({ ids }),
+      signal: AbortSignal.timeout(10_000),
     });
     if (!response.ok) return {};
     const payload: unknown = await response.json();
@@ -217,6 +218,9 @@ export function RconDashboard() {
   const [workshopId, setWorkshopId] = useState("");
   const [broadcast, setBroadcast] = useState("");
   const [historyCursor, setHistoryCursor] = useState(-1);
+  const sessionVersion = useRef(0);
+  const sessionController = useRef<AbortController | null>(null);
+  const statusInFlight = useRef<number | null>(null);
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
   const activeProfile = useMemo(() => {
@@ -232,6 +236,7 @@ export function RconDashboard() {
 
   useEffect(() => {
     queueMicrotask(() => setHydrated(true));
+    return () => { sessionVersion.current += 1; sessionController.current?.abort(); };
   }, []);
 
   useEffect(() => {
@@ -239,13 +244,16 @@ export function RconDashboard() {
   }, [hydrated, stored, notify]);
 
   const runCommands = useCallback(async (commands: string[], profileOverride?: ServerProfile, secretsOverride?: Secrets) => {
+    const version = sessionVersion.current;
     const profile = profileOverride ?? activeProfile;
     const auth = secretsOverride ?? secrets;
     if (!profile) throw new Error("Choose a server profile first.");
-    if (profile.id === "demo" || demoMode) {
+    if (sessionController.current?.signal.aborted) throw new Error("The server session has ended.");
+    if (profile.id === "demo") {
       const results: RconCommandResult[] = [];
       for (const command of commands) {
         const result = await executeDemoCommand(command);
+        if (version !== sessionVersion.current) throw new Error("The server session changed. Retry the command.");
         results.push({ command, ...result });
       }
       return results;
@@ -253,25 +261,32 @@ export function RconDashboard() {
     if (!auth.password) throw new Error("Enter the RCON password to continue.");
     const results: RconCommandResult[] = [];
     for (let index = 0; index < commands.length; index += 8) {
-      results.push(...await requestRcon(profile, auth, commands.slice(index, index + 8)));
+      const batch = await requestRcon(profile, auth, commands.slice(index, index + 8), sessionController.current?.signal);
+      if (version !== sessionVersion.current) throw new Error("The server session changed. Retry the command.");
+      results.push(...batch);
     }
     return results;
-  }, [activeProfile, demoMode, secrets]);
+  }, [activeProfile, secrets]);
 
   const refreshStatus = useCallback(async (silent = false) => {
-    if (!activeProfile) return;
+    const version = sessionVersion.current;
+    if (!activeProfile || statusInFlight.current === version) return;
+    statusInFlight.current = version;
     if (!silent) setRefreshing(true);
     try {
       const [result, jsonResult] = await runCommands(["status", "status_json"]);
+      if (version !== sessionVersion.current) return;
       const parsed = parseStatus(result.response);
       setSnapshot(jsonResult ? enrichStatusWithJson(parsed, jsonResult.response) : parsed);
       setLastLatency(result.durationMs + (jsonResult?.durationMs ?? 0));
       setConnected(true);
     } catch (error) {
+      if (version !== sessionVersion.current) return;
       setConnected(false);
       if (!silent) notify(error instanceof Error ? error.message : "Unable to refresh server status.", "error");
     } finally {
-      if (!silent) setRefreshing(false);
+      if (statusInFlight.current === version) statusInFlight.current = null;
+      if (version === sessionVersion.current && !silent) setRefreshing(false);
     }
   }, [activeProfile, notify, runCommands]);
 
@@ -300,35 +315,55 @@ export function RconDashboard() {
     setConsoleInput("");
     setHistoryCursor(-1);
     setConsoleBusy(true);
+    const version = sessionVersion.current;
     const entry: ConsoleEntry = { id: makeId("command"), command, response: "", status: "pending", timestamp: Date.now() };
     addHistory(entry);
     try {
       const [result] = await runCommands([command]);
+      if (version !== sessionVersion.current) throw new Error("The server session changed. Retry the command.");
       const mapError = getMapLoadError(command, result.response);
       if (mapError) throw new Error(mapError);
       addHistory({ ...entry, response: result.response || "Command completed with no output.", status: "success", durationMs: result.durationMs });
       setLastLatency(result.durationMs);
     } catch (error) {
+      if (version !== sessionVersion.current) return;
       const message = error instanceof Error ? error.message : "Command failed.";
       addHistory({ ...entry, response: message, status: "error" });
       notify(message, "error");
     } finally {
-      setConsoleBusy(false);
+      if (version === sessionVersion.current) setConsoleBusy(false);
     }
   }, [addHistory, consoleBusy, consoleInput, notify, runCommands]);
 
   const connectProfile = useCallback(async (profile: ServerProfile, nextSecrets: Secrets) => {
+    const version = ++sessionVersion.current;
+    sessionController.current?.abort();
+    const controller = new AbortController();
+    sessionController.current = controller;
     setConnecting(true);
+    setConnected(false);
+    setSnapshot(null);
+    setRefreshing(false);
+    setConfirmation(null);
+    setConsoleBusy(false);
+    setBansLoading(false);
+    setMapsLoading(false);
+    setGameModeLoading(false);
+    setCatalogLoading(false);
     try {
       const statusResults = profile.id === "demo"
         ? [{ command: "status", response: DEMO_STATUS, durationMs: 236 }]
-        : await requestRcon(profile, nextSecrets, ["status", "status_json"]);
+        : await requestRcon(profile, nextSecrets, ["status", "status_json"], controller.signal);
+      if (version !== sessionVersion.current) throw new Error("The connection was cancelled.");
       const parsed = parseStatus(statusResults[0].response);
       setSnapshot(statusResults[1] ? enrichStatusWithJson(parsed, statusResults[1].response) : parsed);
       setLastLatency(statusResults.reduce((total, result) => total + result.durationMs, 0));
       setSecrets(nextSecrets);
       setDemoMode(profile.id === "demo");
       setServerMaps(profile.id === "demo" ? DEFAULT_MAPS : []);
+      setBans([]);
+      setCurrentGameMode(null);
+      setStored((current) => ({ ...current, activeProfileId: profile.id === "demo" ? current.activeProfileId : profile.id, syncedCommands: [] }));
       setConnected(true);
       setConnectOpen(false);
       setSection("console");
@@ -336,10 +371,10 @@ export function RconDashboard() {
         addHistory({ id: makeId("command"), command: result.command, response: result.response || "Command completed with no output.", status: "success", timestamp: Date.now(), durationMs: result.durationMs });
       }
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Connection failed.", "error");
+      if (version === sessionVersion.current) notify(error instanceof Error ? error.message : "Connection failed.", "error");
       throw error;
     } finally {
-      setConnecting(false);
+      if (version === sessionVersion.current) setConnecting(false);
     }
   }, [addHistory, notify]);
 
@@ -363,6 +398,7 @@ export function RconDashboard() {
 
   const switchProfile = async (profile: ServerProfile) => {
     if (!profile.password) {
+      disconnect();
       setStored((current) => ({ ...current, activeProfileId: profile.id }));
       setSecrets({ password: "", relayKey: profile.relayKey ?? "" });
       setConnected(false);
@@ -370,59 +406,73 @@ export function RconDashboard() {
       setConnectOpen(true);
       return;
     }
-    setStored((current) => ({ ...current, activeProfileId: profile.id }));
     await connectProfile(profile, { password: profile.password, relayKey: profile.relayKey ?? "" }).catch(() => undefined);
   };
 
   const refreshBans = async () => {
+    const version = sessionVersion.current;
     setBansLoading(true);
     try {
       const results = await runCommands(["listid", "listip"]);
+      if (version !== sessionVersion.current) return;
       setBans([...parseBanList(results[0].response, "steam"), ...parseBanList(results[1].response, "ip")]);
       notify("Ban list refreshed.", "success");
     } catch (error) {
+      if (version !== sessionVersion.current) return;
       notify(error instanceof Error ? error.message : "Could not load bans.", "error");
     } finally {
-      setBansLoading(false);
+      if (version === sessionVersion.current) setBansLoading(false);
     }
   };
 
+
   const refreshMaps = async () => {
+    const version = sessionVersion.current;
     setMapsLoading(true);
     try {
       const [result, workshopResult] = await runCommands(["maps *", "ds_workshop_listmaps"]);
+      if (version !== sessionVersion.current) return;
       const parsed = mergeServerMaps(parseMaps(result.response), parseWorkshopMapList(workshopResult.response));
       const workshopIds = [...new Set(parsed.flatMap((map) => map.workshopId ? [map.workshopId] : []))];
       const titles = await requestWorkshopTitles(workshopIds);
+      if (version !== sessionVersion.current) return;
       const enriched = parsed.map((map) => map.workshopId && titles[map.workshopId] ? { ...map, displayName: titles[map.workshopId] } : map);
       setServerMaps(enriched);
       notify(parsed.length ? `Found ${parsed.length} installed maps.` : "No map names were found in the server response.", parsed.length ? "success" : "info");
     } catch (error) {
+      if (version !== sessionVersion.current) return;
       notify(error instanceof Error ? error.message : "Could not load maps.", "error");
     } finally {
-      setMapsLoading(false);
+      if (version === sessionVersion.current) setMapsLoading(false);
     }
   };
 
+
   const refreshGameMode = async (announce = true) => {
+    const version = sessionVersion.current;
     setGameModeLoading(true);
     try {
       const [typeResult, modeResult] = await runCommands(["game_type", "game_mode"]);
+      if (version !== sessionVersion.current) return;
       const type = parseIntegerCvar(typeResult.response, "game_type");
       const mode = parseIntegerCvar(modeResult.response, "game_mode");
       if (type === null || mode === null) throw new Error("The server did not return numeric game_type and game_mode values.");
       setCurrentGameMode({ type, mode });
       if (announce) notify("Game mode values refreshed.", "success");
     } catch (error) {
+      if (version !== sessionVersion.current) return;
       notify(error instanceof Error ? error.message : "Could not read the current game mode.", "error");
     } finally {
-      setGameModeLoading(false);
+      if (version === sessionVersion.current) setGameModeLoading(false);
     }
   };
 
+
   const stageGameMode = async (preset: GameModePreset) => {
+    const version = sessionVersion.current;
     const commands = [`game_type ${preset.type}`, `game_mode ${preset.mode}`];
     const results = await runCommands(commands);
+    if (version !== sessionVersion.current) return;
     for (const result of results) {
       addHistory({
         id: makeId("command"),
@@ -438,22 +488,28 @@ export function RconDashboard() {
   };
 
   const syncCatalog = async () => {
+    const version = sessionVersion.current;
     setCatalogLoading(true);
     try {
       const [result] = await runCommands(["cvarlist"]);
+      if (version !== sessionVersion.current) return;
       const parsed = parseCvarList(result.response);
       setStored((current) => ({ ...current, syncedCommands: parsed }));
       notify(`Synced ${parsed.length.toLocaleString()} commands from this server.`, parsed.length ? "success" : "info");
     } catch (error) {
+      if (version !== sessionVersion.current) return;
       notify(error instanceof Error ? error.message : "Could not sync command catalogue.", "error");
     } finally {
-      setCatalogLoading(false);
+      if (version === sessionVersion.current) setCatalogLoading(false);
     }
   };
 
+
   const runQuick = async (command: string, successMessage: string) => {
+    const version = sessionVersion.current;
     try {
       const [result] = await runCommands([command]);
+      if (version !== sessionVersion.current) throw new Error("The server session changed. Retry the command.");
       setLastLatency(result.durationMs);
       const mapError = getMapLoadError(command, result.response);
       if (mapError) {
@@ -463,7 +519,7 @@ export function RconDashboard() {
       notify(successMessage, "success");
       addHistory({ id: makeId("command"), command, response: result.response || "Command completed with no output.", status: "success", timestamp: Date.now(), durationMs: result.durationMs });
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Command failed.", "error");
+      if (version === sessionVersion.current) notify(error instanceof Error ? error.message : "Command failed.", "error");
       throw error;
     }
   };
@@ -471,13 +527,14 @@ export function RconDashboard() {
   const confirmAction = (details: Confirmation) => setConfirmation(details);
 
   const completeConfirmation = async () => {
-    if (!confirmation) return;
+    if (!confirmation || confirmationBusy) return;
+    const version = sessionVersion.current;
     setConfirmationBusy(true);
     try {
       await confirmation.action();
-      setConfirmation(null);
+      if (version === sessionVersion.current) setConfirmation(null);
     } catch (error) {
-      notify(error instanceof Error ? error.message : "The server action failed.", "error");
+      if (version === sessionVersion.current) notify(error instanceof Error ? error.message : "The server action failed.", "error");
     } finally {
       setConfirmationBusy(false);
     }
@@ -538,6 +595,19 @@ export function RconDashboard() {
   };
 
   const disconnect = () => {
+    sessionVersion.current += 1;
+    sessionController.current?.abort();
+    setConnecting(false);
+    setRefreshing(false);
+    setConfirmation(null);
+    setConsoleBusy(false);
+    setBansLoading(false);
+    setMapsLoading(false);
+    setGameModeLoading(false);
+    setCatalogLoading(false);
+    setBans([]);
+    setServerMaps([]);
+    setCurrentGameMode(null);
     setConnected(false);
     setSnapshot(null);
     setDemoMode(false);
@@ -784,7 +854,7 @@ export function RconDashboard() {
                   activeProfile={activeProfile}
                   connected={connected}
                   demoMode={demoMode}
-                  onAdd={() => { setDemoMode(false); setConnectOpen(true); }}
+                  onAdd={() => setConnectOpen(true)}
                   onSwitch={(profile) => void switchProfile(profile)}
                   onDelete={(profile) => confirmAction({
                     title: `Delete ${profile.name}?`,
@@ -810,10 +880,9 @@ export function RconDashboard() {
                     label: "Clear local data",
                     tone: "danger",
                     action: async () => {
+                      disconnect();
+                      setSecrets({ password: "", relayKey: "" });
                       setStored(DEFAULT_STORED_STATE);
-                      setConnected(false);
-                      setSnapshot(null);
-                      setDemoMode(false);
                       setConnectOpen(true);
                     },
                   })}

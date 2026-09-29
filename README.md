@@ -69,7 +69,7 @@ Imports also support common field aliases, nested `rcon`/`server` objects, and l
 
 ## Privacy and security
 
-Passwords stay in memory unless you choose to remember them. Remembered secrets use unencrypted browser storage. Safe profile exports omit passwords and installation keys, but command history may contain sensitive text.
+Passwords stay in memory unless you choose to remember them. Remembered secrets use unencrypted browser storage. Safe profile exports omit passwords, installation keys, command history, saved commands, and discovered command values.
 
 With a hosted connection, the website processes your RCON password. With the helper, RCON runs on your computer. HTTPS protects browser-to-website traffic; **Source RCON itself is unencrypted**. Use a trusted host or VPN and restrict the game server's firewall accordingly.
 
