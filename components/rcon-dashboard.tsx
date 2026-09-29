@@ -42,7 +42,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { COMMAND_LIBRARY, DEFAULT_MAPS, GAME_MODE_PRESETS, getCommandCompletions, getMapChangeCommand, quoteRcon, type GameModePreset } from "@/lib/commands";
+import { COMMAND_LIBRARY, DEFAULT_MAPS, GAME_MODE_PRESETS, getCommandCompletions, getMapChangeCommand, getMapLoadError, quoteRcon, type GameModePreset } from "@/lib/commands";
 import { DEMO_STATUS, executeDemoCommand } from "@/lib/demo";
 import { enrichStatusWithJson, mergeServerMaps, parseBanList, parseCvarList, parseIntegerCvar, parseMaps, parseStatus, parseWorkshopMapList } from "@/lib/parsers";
 import { DEFAULT_STORED_STATE, exportStoredState, loadStoredState, saveStoredState } from "@/lib/storage";
@@ -94,7 +94,7 @@ const NAV_ITEMS: Array<{ id: Section; label: string }> = [
 const SECTION_COPY: Record<Section, { eyebrow: string; title: string; description: string }> = {
   players: { eyebrow: "Roster", title: "Connected players", description: "Inspect, kick, or ban the current roster." },
   bans: { eyebrow: "Moderation", title: "Ban list", description: "Steam and IP filters reported by the server." },
-  maps: { eyebrow: "Rotation", title: "Server maps", description: "Browse installed maps and change level safely." },
+  maps: { eyebrow: "Rotation", title: "Maps", description: "Choose a Workshop map or browse the server inventory." },
   modes: { eyebrow: "Ruleset", title: "Game modes", description: "Manage the exact game_type and game_mode pair." },
   console: { eyebrow: "RCON", title: "Server console", description: "Commands, players, and match controls in one place." },
   guide: { eyebrow: "Connection", title: "Connection guide", description: "Connect through this website or your own device." },
@@ -196,7 +196,7 @@ export function RconDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [snapshot, setSnapshot] = useState<ServerSnapshot | null>(null);
   const [lastLatency, setLastLatency] = useState<number | null>(null);
-  const [serverMaps, setServerMaps] = useState<ServerMap[]>(DEFAULT_MAPS);
+  const [serverMaps, setServerMaps] = useState<ServerMap[]>([]);
   const [bans, setBans] = useState<BanEntry[]>([]);
   const [bansLoading, setBansLoading] = useState(false);
   const [mapsLoading, setMapsLoading] = useState(false);
@@ -304,12 +304,10 @@ export function RconDashboard() {
     addHistory(entry);
     try {
       const [result] = await runCommands([command]);
+      const mapError = getMapLoadError(command, result.response);
+      if (mapError) throw new Error(mapError);
       addHistory({ ...entry, response: result.response || "Command completed with no output.", status: "success", durationMs: result.durationMs });
       setLastLatency(result.durationMs);
-      if (/^(changelevel|map)\s+/i.test(command)) {
-        const map = command.split(/\s+/).slice(1).join(" ").replace(/^"|"$/g, "");
-        setSnapshot((current) => current ? { ...current, map, updatedAt: Date.now() } : current);
-      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Command failed.";
       addHistory({ ...entry, response: message, status: "error" });
@@ -330,6 +328,7 @@ export function RconDashboard() {
       setLastLatency(statusResults.reduce((total, result) => total + result.durationMs, 0));
       setSecrets(nextSecrets);
       setDemoMode(profile.id === "demo");
+      setServerMaps(profile.id === "demo" ? DEFAULT_MAPS : []);
       setConnected(true);
       setConnectOpen(false);
       setSection("console");
@@ -396,7 +395,7 @@ export function RconDashboard() {
       const workshopIds = [...new Set(parsed.flatMap((map) => map.workshopId ? [map.workshopId] : []))];
       const titles = await requestWorkshopTitles(workshopIds);
       const enriched = parsed.map((map) => map.workshopId && titles[map.workshopId] ? { ...map, displayName: titles[map.workshopId] } : map);
-      if (enriched.length) setServerMaps(enriched);
+      setServerMaps(enriched);
       notify(parsed.length ? `Found ${parsed.length} installed maps.` : "No map names were found in the server response.", parsed.length ? "success" : "info");
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not load maps.", "error");
@@ -456,6 +455,11 @@ export function RconDashboard() {
     try {
       const [result] = await runCommands([command]);
       setLastLatency(result.durationMs);
+      const mapError = getMapLoadError(command, result.response);
+      if (mapError) {
+        addHistory({ id: makeId("command"), command, response: result.response, status: "error", timestamp: Date.now(), durationMs: result.durationMs });
+        throw new Error(mapError);
+      }
       notify(successMessage, "success");
       addHistory({ id: makeId("command"), command, response: result.response || "Command completed with no output.", status: "success", timestamp: Date.now(), durationMs: result.durationMs });
     } catch (error) {
@@ -698,7 +702,7 @@ export function RconDashboard() {
                   onChange={(map) => confirmAction({
                     title: `${map.category === "Workshop" ? "Change Workshop map" : "Change level"} to ${map.displayName ?? map.name}?`,
                     body: map.workshopId
-                      ? `CS2 RCON identified Workshop item ${map.workshopId} from the server's installed-map path and will run host_workshop_map ${map.workshopId}. The current match will end while Steam mounts the map.`
+                      ? `Run host_workshop_map ${map.workshopId}. The current match will end while Steam downloads or mounts the map. Older map versions may not be compatible with this server.`
                       : map.category === "Workshop"
                         ? `CS2 listed ${map.name} as an available Workshop collection map without exposing its published-file ID. CS2 RCON will use ds_workshop_changelevel ${map.name}, the dedicated command for an existing Workshop map.`
                         : "The current match will end and every connected player will load the selected map using changelevel.",
@@ -707,7 +711,6 @@ export function RconDashboard() {
                     action: async () => {
                       const command = getMapChangeCommand(map);
                       await runQuick(command, map.category === "Workshop" ? `Workshop map ${map.displayName ?? map.name} requested.` : `Changing level to ${map.name}.`);
-                      setSnapshot((current) => current ? { ...current, map: map.name, updatedAt: Date.now() } : current);
                     },
                   })}
                   onWorkshop={() => {
@@ -751,6 +754,8 @@ export function RconDashboard() {
                     latency={lastLatency}
                     demoMode={demoMode}
                     onSync={() => void syncCatalog()}
+                    onRefreshPlayers={() => void refreshStatus()}
+                    refreshingPlayers={refreshing}
                     onSubmit={() => void executeConsole()}
                     onKeyDown={handleConsoleKeyDown}
                     onUseCommand={(command) => setConsoleInput(command)}
@@ -1086,6 +1091,8 @@ interface ConsoleViewProps {
   latency: number | null;
   demoMode: boolean;
   onSync: () => void;
+  onRefreshPlayers: () => void;
+  refreshingPlayers: boolean;
   onSubmit: () => void;
   onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
   onUseCommand: (command: string) => void;
@@ -1094,7 +1101,7 @@ interface ConsoleViewProps {
   endRef: React.RefObject<HTMLDivElement | null>;
 }
 
-function ConsoleView({ children, entries, input, setInput, busy, search, setSearch, commands, completions, syncedCount, syncing, snapshot, profile, latency, demoMode, onSync, onSubmit, onKeyDown, onUseCommand, onClear, onCopy, endRef }: ConsoleViewProps) {
+function ConsoleView({ children, entries, input, setInput, busy, search, setSearch, commands, completions, syncedCount, syncing, snapshot, profile, latency, demoMode, onSync, onRefreshPlayers, refreshingPlayers, onSubmit, onKeyDown, onUseCommand, onClear, onCopy, endRef }: ConsoleViewProps) {
   const [completionIndex, setCompletionIndex] = useState(0);
   const [completionVisible, setCompletionVisible] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -1145,6 +1152,7 @@ function ConsoleView({ children, entries, input, setInput, busy, search, setSear
 
   return (
     <div className="console-layout">
+      <div className="terminal-with-roster">
       <section className="terminal terminal-panel panel" aria-label="Server console">
         <div className="terminal__header">
           <div className="terminal__dots" aria-hidden="true"><i /><i /><i /></div>
@@ -1199,6 +1207,27 @@ function ConsoleView({ children, entries, input, setInput, busy, search, setSear
         </form>
         <div className="terminal-hints"><span><kbd>↑</kbd><kbd>↓</kbd> command history</span><span><kbd>Tab</kbd> autocomplete</span><span>{demoMode ? "Demo responses" : "RCON over TCP"}</span></div>
       </section>
+      <aside className="console-roster panel" aria-label="Quick player list">
+        <div className="console-roster__header"><h2>Players <span>{snapshot.players.length}</span></h2><button className="icon-button" onClick={onRefreshPlayers} disabled={refreshingPlayers} aria-label="Refresh player list"><RefreshCw size={15} className={refreshingPlayers ? "spin" : ""} /></button></div>
+        <p>Click an ID to insert it into your command.</p>
+        <ul>{snapshot.players.map((player) => <li key={player.userId}>
+          <button type="button" className="console-roster__id" aria-label={`Insert user ID ${player.userId} for ${player.name}`} onClick={() => {
+            const field = inputRef.current;
+            const start = field?.selectionStart ?? input.length;
+            const end = field?.selectionEnd ?? start;
+            const before = input.slice(0, start);
+            const after = input.slice(end);
+            const insertion = `${before && !/\s$/.test(before) ? " " : ""}${player.userId}${after && !/^\s/.test(after) ? " " : ""}`;
+            setInput(`${before}${insertion}${after}`);
+            setCompletionVisible(false);
+            requestAnimationFrame(() => { field?.focus(); field?.setSelectionRange(start + insertion.length, start + insertion.length); });
+          }}><code>#{player.userId}</code></button>
+          <span title={player.name}>{player.name}</span>{player.isBot && <small>BOT</small>}
+        </li>)}</ul>
+        {!snapshot.players.length && <p>No players connected.</p>}
+        <small>Updated {formatRelative(snapshot.updatedAt)}</small>
+      </aside>
+      </div>
 
       {children}
 

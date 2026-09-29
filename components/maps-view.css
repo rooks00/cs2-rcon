@@ -72,3 +72,7 @@
 @media (prefers-reduced-motion: reduce) {
   .maps-table tbody tr { transition: none; }
 }
+.maps-source-controls { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; }
+.maps-source-controls label { display: grid; gap: 8px; font-size: 13px; min-width: 0; max-width: 100%; }
+.maps-source-controls select { min-height: 40px; max-width: 100%; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--field-bg); color: var(--text); }
+.maps-source-controls p { flex-basis: 100%; max-width: 75ch; color: var(--text-soft); font-size: 13px; line-height: 1.6; }

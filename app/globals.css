@@ -186,6 +186,19 @@ svg { flex-shrink: 0; }
 
 /* The terminal is the main surface. Blur stays on this single, bounded layer. */
 .console-layout { display: flex; flex-direction: column; gap: 17px; min-width: 0; }
+.terminal-with-roster { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 17px; align-items: start; }
+.console-roster { padding: 14px; min-width: 0; }
+.console-roster__header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.console-roster h2 { font-size: 14px; }
+.console-roster h2 span { margin-left: 6px; color: var(--text-soft); font-weight: 400; }
+.console-roster p, .console-roster > small { color: var(--text-soft); font-size: 12px; line-height: 1.6; }
+.console-roster ul { list-style: none; margin: 12px 0; padding: 0; max-height: 320px; overflow-y: auto; }
+.console-roster li { display: flex; align-items: center; gap: 9px; min-height: 36px; border-bottom: 1px solid var(--line-soft); font-size: 13px; }
+.console-roster li > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.console-roster li > small { margin-left: auto; color: var(--text-soft); font-size: 10px; }
+.console-roster__id { flex-shrink: 0; padding: 7px 5px; border: 0; background: transparent; color: var(--text); border-radius: 4px; }
+.console-roster__id:hover { background: var(--panel-hover); }
+@media (max-width: 1000px) { .terminal-with-roster { grid-template-columns: minmax(0, 1fr); } .console-roster ul { max-height: 180px; } }
 .terminal { position: relative; overflow: hidden; background: rgb(0 0 0 / 20%); border-color: rgb(255 255 255 / 8%); -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); }
 .terminal__header { display: flex; align-items: center; gap: 13px; min-height: 50px; padding: 12px 21px; border-bottom: 1px solid var(--line-soft); background: transparent; }
 .terminal__dots { display: flex; gap: 6px; }

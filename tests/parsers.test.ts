@@ -13,6 +13,30 @@ players : 2 humans, 1 bots (12 max) (not hibernating)
 # 10 3 "Mika" [U:1:99881] 07:11 47 1 active 786432 198.51.100.2:27005`;
 
 describe("parseStatus", () => {
+  it("deduplicates repeated user IDs while retaining namesakes and separate bots", () => {
+    const row = '# 2 "Same Name" STEAM_1:1:12345 11:35 14 0 active 786432';
+    const status = parseStatus(`# userid name uniqueid connected ping loss state rate adr\n${row}\n${row}\n# 3 "Same Name" STEAM_1:1:99999 11:35 14 0 active 786432\n# 4 "Bot" BOT active 32\n# 5 "Bot" BOT active 32\n#end\n# 6 "Not in roster" BOT active 32`);
+    expect(status.players.map((player) => player.userId)).toEqual(["2", "3", "4", "5"]);
+    expect(status.humans).toBe(2);
+    expect(status.bots).toBe(2);
+  });
+
+  it("supports apostrophes in modern names and repeated rows", () => {
+    const row = "2 1:24:03 18 0 active 196608 'O'Brien'";
+    const status = parseStatus(`id time ping loss state rate name\n${row}\n${row}\n#end`);
+    expect(status.players).toHaveLength(1);
+    expect(status.players[0].name).toBe("O'Brien");
+  });
+
+  it("does not assign Steam IDs by array position or ambiguous names", () => {
+    const status = parseStatus("id time ping loss state rate name\n2 1:00 18 0 active 100 'Renamed'\n3 1:00 18 0 active 100 'Twin'\n4 1:00 18 0 active 100 'Twin'\n#end");
+    const enriched = enrichStatusWithJson(status, JSON.stringify({ server: { clients: [
+      { name: "Old name", steamid: "[U:1:111]" },
+      { name: "Twin", steamid: "[U:1:222]" },
+      { name: "Twin", steamid: "[U:1:333]" },
+    ] } }));
+    expect(enriched.players.map((player) => player.steamId)).toEqual(["", "", ""]);
+  });
   it("extracts server metadata and both human and bot rows", () => {
     const status = parseStatus(STATUS);
     expect(status.hostname).toBe("RELAY // TEST");
@@ -64,6 +88,12 @@ describe("parseBanList", () => {
 });
 
 describe("parseMaps", () => {
+  it("normalizes archive indexes and ignores chunks and legacy BSP files", () => {
+    expect(parseMaps("[Console] de_mirage\nmaps/workshop/123/de_cache_dir.vpk\nmaps/workshop/123/de_cache_000.vpk\nde_old.bsp")).toEqual([
+      { name: "de_cache", category: "Workshop", workshopId: "123" },
+      { name: "de_mirage", category: "Defusal" },
+    ]);
+  });
   it("extracts VPK paths and bare map rows", () => {
     const maps = parseMaps(`PENDING: (fs)maps/de_mirage.vpk\n/maps/workshop/123/aim_redline.vpk\n3. cs_office\nnoise`);
     expect(maps.map((map) => map.name)).toEqual(["aim_redline", "cs_office", "de_mirage"]);
@@ -81,6 +111,23 @@ describe("parseMaps", () => {
 });
 
 describe("Workshop map inventory", () => {
+  it("strips extensions and preserves different versions with the same filename", () => {
+    expect(parseWorkshopMapList("maps/workshop/111/de_lake.vpk\nmaps/workshop/222/de_lake.vpk\nold_map.bsp")).toEqual([
+      { name: "de_lake", category: "Workshop", workshopId: "111" },
+      { name: "de_lake", category: "Workshop", workshopId: "222" },
+    ]);
+  });
+
+  it("never guesses which filename belongs to a numeric Workshop archive", () => {
+    const merged = mergeServerMaps([{ name: "123", workshopId: "123", category: "Workshop" }], [{ name: "de_lake", category: "Workshop" }]);
+    expect(merged).toHaveLength(2);
+    expect(merged.find((map) => map.name === "de_lake")?.workshopId).toBeUndefined();
+  });
+
+  it("marks mounted map names as Workshop and retains explicit version IDs", () => {
+    expect(mergeServerMaps([{ name: "de_lake", category: "Defusal" }], [{ name: "de_lake", category: "Workshop" }])).toEqual([{ name: "de_lake", category: "Workshop" }]);
+    expect(mergeServerMaps([{ name: "de_lake", category: "Workshop", workshopId: "111" }], [{ name: "de_lake", category: "Workshop", workshopId: "222" }])).toHaveLength(2);
+  });
   it("reads the filename-per-line output from ds_workshop_listmaps", () => {
     expect(parseWorkshopMapList("aim_botz\r\nsurf_utopia.vpk\n3: awp_lego2\n")).toEqual([
       { name: "aim_botz", category: "Workshop" },

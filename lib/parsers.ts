@@ -68,6 +68,7 @@ export function parseStatus(raw: string): ServerSnapshot {
   if (headerIndex >= 0) {
     for (const originalLine of lines.slice(headerIndex + 1)) {
       const line = originalLine.trim().replace(/^#\s*/, "");
+      if (/^(?:end|\d+\s+users?)\b/i.test(line)) break;
       if (!line || /^[-=]+$/.test(line) || /^\d+\s+users?\b/i.test(line)) continue;
 
       const rawTokens = line.match(/"(?:\\.|[^"\\])*"|\S+/g) ?? [];
@@ -82,6 +83,7 @@ export function parseStatus(raw: string): ServerSnapshot {
       if (steamIndex < 0) continue;
 
       const userId = tokens[0];
+      if (!/^\d+$/.test(userId)) continue;
       const slot = nameIndex > 1 ? tokens[nameIndex - 1] : undefined;
       const name = tokens.slice(nameIndex, steamIndex).join(" ");
       const steamId = tokens[steamIndex];
@@ -111,11 +113,11 @@ export function parseStatus(raw: string): ServerSnapshot {
     for (const originalLine of lines.slice(modernHeaderIndex + 1)) {
       const line = originalLine.trim();
       if (!line || line === "#end" || /^[-=]+$/.test(line)) break;
-      const match = line.match(/^(\d+)\s+(\S+)\s+(-?\d+)\s+(\d+)\s+(\S+)\s+(\d+)\s+(?:(\S+)\s+)?['"]([^'"]*)['"]\s*$/);
-      if (!match || !match[8]) continue;
+      const match = line.match(/^(\d+)\s+(\S+)\s+(-?\d+)\s+(\d+)\s+(\S+)\s+(\d+)\s+(?:(\S+)\s+)?(['"])(.*)\8\s*$/);
+      if (!match) continue;
       players.push({
         userId: match[1],
-        name: match[8],
+        name: match[9],
         steamId: "",
         connected: match[2] === "BOT" ? undefined : match[2],
         ping: Number(match[3]),
@@ -128,9 +130,12 @@ export function parseStatus(raw: string): ServerSnapshot {
     }
   }
 
-  if (!detailedCount && players.length) {
-    humans = players.filter((player) => !player.isBot).length;
-    bots = players.filter((player) => player.isBot).length;
+  // RCON output can contain repeated rows. User IDs identify connections;
+  // names and BOT Steam IDs are shared and must never be used to deduplicate.
+  const uniquePlayers = [...new Map(players.map((player) => [player.userId, player])).values()];
+  if (!detailedCount && uniquePlayers.length) {
+    humans = uniquePlayers.filter((player) => !player.isBot).length;
+    bots = uniquePlayers.filter((player) => player.isBot).length;
   }
 
   return {
@@ -144,7 +149,7 @@ export function parseStatus(raw: string): ServerSnapshot {
     humans,
     bots,
     maxPlayers,
-    players,
+    players: uniquePlayers,
     raw,
     updatedAt: Date.now(),
   };
@@ -177,9 +182,12 @@ export function enrichStatusWithJson(snapshot: ServerSnapshot, rawJson: string):
   const isValidSteamId = (value: unknown): value is string =>
     typeof value === "string" && value !== "0" && value !== "[I:0:0]" && /^(?:STEAM_|\[U:|7656119\d{10}$)/i.test(value);
 
-  const players = snapshot.players.map((player, playerIndex) => {
-    let clientIndex = clients.findIndex((client, index) => !used.has(index) && typeof client.name === "string" && client.name === player.name);
-    if (clientIndex < 0 && clients.length === snapshot.players.length && clients[playerIndex]) clientIndex = playerIndex;
+  const players = snapshot.players.map((player) => {
+    // These are separate snapshots; ordering is not an identity guarantee.
+    // Do not assign ban targets when identical names make matching ambiguous.
+    if (snapshot.players.filter((other) => other.name === player.name).length !== 1) return player;
+    const matches = clients.flatMap((client, index) => !used.has(index) && client.name === player.name && (typeof client.bot !== "boolean" || client.bot === player.isBot) ? [index] : []);
+    const clientIndex = matches.length === 1 ? matches[0] : -1;
     if (clientIndex < 0) return player;
     used.add(clientIndex);
     const client = clients[clientIndex];
@@ -231,22 +239,29 @@ export function parseMaps(raw: string): ServerMap[] {
   const maps = new Map<string, ServerMap>();
   const normalized = raw.replace(/\\/g, "/").replace(/\r/g, "");
 
-  for (const line of normalized.split("\n")) {
+  for (const originalLine of normalized.split("\n")) {
+    const line = originalLine.replace(/^\s*\[[^\]]+\]\s*/, "");
     const isWorkshopLine = /(?:^|[^a-z0-9_])workshop\/\d+\//i.test(line);
     for (const match of line.matchAll(/(?:^|[^a-z0-9_])(?:maps\/)?workshop\/(\d+)\/(?:[a-z0-9_.-]+\/)*([a-z0-9][a-z0-9_.-]*)\.vpk\b/gi)) {
       const workshopId = match[1];
-      const name = match[2].toLowerCase();
+      // Multi-part VPK chunks are archive data, not selectable map names.
+      if (/_\d{3}$/.test(match[2])) continue;
+      const name = match[2].toLowerCase().replace(/_dir$/, "");
       maps.set(`workshop:${workshopId}:${name}`, { name, category: "Workshop", workshopId });
     }
     if (!isWorkshopLine) {
       for (const match of line.matchAll(/(?:^|[^a-z0-9_])maps\/([a-z0-9][a-z0-9_.-]*)\.vpk\b/gi)) {
-        const name = match[1].toLowerCase();
+        if (/_\d{3}$/.test(match[1])) continue;
+        const name = match[1].toLowerCase().replace(/_dir$/, "");
         maps.set(`stock:${name}`, { name, category: categorizeMap(name) });
       }
     }
     const bare = line.trim().match(/^(?:\d+[.):]?\s*)?((?:de|cs|ar|gd|aim|awp|surf|kz|ze|fy)_[a-z0-9_.-]+)(?:\.vpk)?(?:\s|$)/i);
     if (bare) {
-      const name = bare[1].toLowerCase().replace(/\.vpk$/, "");
+      if (/\.(?:bsp|vmap_c)$/i.test(bare[1])) continue;
+      const filename = bare[1].toLowerCase().replace(/\.vpk$/, "");
+      if (/_\d{3}$/.test(filename)) continue;
+      const name = filename.replace(/_dir$/, "");
       maps.set(`stock:${name}`, { name, category: categorizeMap(name) });
     }
   }
@@ -265,12 +280,18 @@ export function parseWorkshopMapList(raw: string): ServerMap[] {
     const workshopPath = line.match(/(?:maps\/)?workshop\/(\d+)\/(?:[a-z0-9_.-]+\/)*([a-z0-9][a-z0-9_.-]*)(?:\.(?:vpk|bsp))?$/i);
     if (workshopPath) {
       const workshopId = workshopPath[1];
-      const name = workshopPath[2].toLowerCase();
-      maps.set(name, { name, category: "Workshop", workshopId });
+      if (/\.bsp$/i.test(workshopPath[2])) continue;
+      const filename = workshopPath[2].toLowerCase().replace(/\.vpk$/, "");
+      if (/_\d{3}$/.test(filename)) continue;
+      const name = filename.replace(/_dir$/, "");
+      maps.set(`${workshopId}:${name}`, { name, category: "Workshop", workshopId });
       continue;
     }
 
-    line = line.replace(/\.(?:vpk|bsp)$/i, "");
+    if (/\.bsp$/i.test(line)) continue;
+    line = line.replace(/\.vpk$/i, "");
+    if (/_\d{3}$/.test(line)) continue;
+    line = line.replace(/_dir$/, "");
     const indexed = line.match(/^(?:\d+[.):|-]\s*)?([a-z0-9][a-z0-9_.-]{0,127})$/i);
     if (!indexed) continue;
     const name = indexed[1].toLowerCase();
@@ -282,26 +303,16 @@ export function parseWorkshopMapList(raw: string): ServerMap[] {
 
 export function mergeServerMaps(installed: ServerMap[], workshopInventory: ServerMap[]): ServerMap[] {
   const result = installed.map((map) => ({ ...map }));
-  const workshopByName = new Map(result.filter((map) => map.category === "Workshop").map((map) => [map.name.toLowerCase(), map]));
-  const remainingInventory = workshopInventory.filter((map) => !workshopByName.has(map.name.toLowerCase()));
-  const unresolvedWithIds = result.filter((map) => map.workshopId && (/^\d+$/.test(map.name) || map.name === map.workshopId));
-
-  if (unresolvedWithIds.length && unresolvedWithIds.length === remainingInventory.length) {
-    unresolvedWithIds.forEach((map, index) => {
-      map.name = remainingInventory[index].name;
-      map.displayName = remainingInventory[index].displayName;
-      workshopByName.set(map.name.toLowerCase(), map);
-    });
-  }
-
   for (const map of workshopInventory) {
-    const known = workshopByName.get(map.name.toLowerCase());
+    const known = result.find((item) => map.workshopId
+      ? item.workshopId === map.workshopId
+      : item.name.toLowerCase() === map.name.toLowerCase());
     if (known) {
-      known.workshopId ??= map.workshopId;
+      known.category = "Workshop";
+      if (/^\d+$/.test(known.name)) known.name = map.name;
       continue;
     }
-    result.push(map);
-    workshopByName.set(map.name.toLowerCase(), map);
+    result.push({ ...map });
   }
 
   return result.sort((a, b) => (a.displayName ?? a.name).localeCompare(b.displayName ?? b.name) || (a.workshopId ?? "").localeCompare(b.workshopId ?? ""));

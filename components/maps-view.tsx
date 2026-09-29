@@ -3,6 +3,7 @@
 import { ChevronLeft, ChevronRight, Radio, RefreshCw, Search, Star } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 import type { ServerMap } from "@/lib/types";
+import { WORKSHOP_GROUPS, WORKSHOP_MAPS } from "@/lib/workshop-maps";
 
 export interface MapsViewProps {
   maps: ServerMap[];
@@ -33,7 +34,12 @@ function sortMaps(maps: ServerMap[], favorites: Set<string>): ServerMap[] {
 }
 
 export function MapsView(props: MapsViewProps) {
-  const { maps, currentMap, favorites, workshopId, setWorkshopId, onWorkshop, loading, search } = props;
+  const { currentMap, favorites, workshopId, setWorkshopId, onWorkshop, loading, search } = props;
+  const [source, setSource] = useState("catalog");
+  const [group, setGroup] = useState("");
+  const catalog = WORKSHOP_GROUPS.find((item) => item.name === group)?.maps ?? WORKSHOP_MAPS;
+  const query = search.trim().toLowerCase();
+  const maps = source === "server" ? props.maps : catalog.filter((map) => `${map.displayName} ${map.workshopId}`.toLowerCase().includes(query));
   const [pageSize, setPageSize] = useState(10);
   const workshopInputId = useId();
   const favoriteNames = useMemo(() => new Set(favorites), [favorites]);
@@ -58,7 +64,12 @@ export function MapsView(props: MapsViewProps) {
           </div>
         </form>
       </section>
-      <MapTable {...props} maps={sorted} datasetKey={datasetKey} favoriteNames={favoriteNames} pageSize={pageSize} setPageSize={setPageSize} />
+      <div className="maps-source-controls">
+        <label>Map source<select value={source} onChange={(event) => setSource(event.target.value)}><option value="catalog">Workshop catalog</option><option value="server">Server inventory</option></select></label>
+        {source === "catalog" && <label>Collection<select value={group} onChange={(event) => setGroup(event.target.value)}><option value="">All groups</option>{WORKSHOP_GROUPS.map((item) => <option key={item.name}>{item.name}</option>)}</select></label>}
+        <p>{source === "catalog" ? "Load by Workshop ID. Steam may download the map before it starts. Compatibility depends on the map and server version." : "Installed files may be outdated or incompatible. Use the Workshop catalog to request a map by ID."}</p>
+      </div>
+      <MapTable {...props} total={source === "server" ? props.total : catalog.length} maps={sorted} datasetKey={`${source}:${group}:${datasetKey}`} favoriteNames={favoriteNames} pageSize={pageSize} setPageSize={setPageSize} />
     </div>
   );
 }
@@ -84,7 +95,8 @@ function MapTable({ maps, total, currentMap, loading, search, setSearch, onRefre
   const start = currentPage * pageSize;
   const visibleMaps = maps.slice(start, start + pageSize);
   const selectedMap = selectedId ? maps.find((map) => mapKey(map) === selectedId) : undefined;
-  const selectedCurrent = selectedMap?.name === currentMap;
+  // Status often exposes only a filename, which cannot identify a Workshop version.
+  const selectedCurrent = selectedMap?.category !== "Workshop" && selectedMap?.name === currentMap;
   const toggleFavorite = (map: ServerMap) => {
     const nextFavorites = new Set(favoriteNames);
     if (nextFavorites.has(map.name)) nextFavorites.delete(map.name);
@@ -96,9 +108,9 @@ function MapTable({ maps, total, currentMap, loading, search, setSearch, onRefre
   };
 
   return (
-    <section className="maps-table-panel panel" aria-label="Installed maps">
+    <section className="maps-table-panel panel" aria-label="Map selection">
       <div className="maps-toolbar">
-        <div className="search-field maps-search"><Search size={16} /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} aria-label="Search maps" placeholder="Search installed maps" /></div>
+        <div className="search-field maps-search"><Search size={16} /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} aria-label="Search maps" placeholder="Search map name or Workshop ID" /></div>
         <div className="maps-toolbar-actions">
           <button className="button button--secondary" onClick={() => {
             setPage(0);
@@ -124,7 +136,7 @@ function MapTable({ maps, total, currentMap, loading, search, setSearch, onRefre
                 const key = mapKey(map);
                 const displayName = map.displayName ?? map.name;
                 const selected = selectedId === key;
-                const isCurrent = map.name === currentMap;
+                const isCurrent = map.category !== "Workshop" && map.name === currentMap;
                 const favorite = favoriteNames.has(map.name);
                 const radioId = `${groupId}-map-${index}`;
                 return (
@@ -146,7 +158,7 @@ function MapTable({ maps, total, currentMap, loading, search, setSearch, onRefre
       </fieldset>
 
       <footer className="maps-pagination">
-        <p className="maps-count" aria-live="polite">{maps.length ? `${start + 1}–${Math.min(start + pageSize, maps.length)} of ${maps.length}` : "0"} {search.trim() ? "matching maps" : "maps"}{total !== maps.length && <span>{total} installed</span>}</p>
+        <p className="maps-count" aria-live="polite">{maps.length ? `${start + 1}–${Math.min(start + pageSize, maps.length)} of ${maps.length}` : "0"} {search.trim() ? "matching maps" : "maps"}{total !== maps.length && <span>{total} total</span>}</p>
         <div className="maps-pagination-controls">
           <label>Rows per page<select value={pageSize} onChange={(event) => { setPage(0); setPageSize(Number(event.target.value)); }}><option value={10}>10</option><option value={20}>20</option><option value={50}>50</option></select></label>
           <span className="maps-page-number">Page {currentPage + 1} of {pageCount}</span>

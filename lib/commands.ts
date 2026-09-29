@@ -94,6 +94,14 @@ export function getMapChangeCommand(map: ServerMap): string {
   return `changelevel ${map.name}`;
 }
 
+export function getMapLoadError(command: string, response: string): string | null {
+  if (!/^(?:host_workshop_map|ds_workshop_changelevel|changelevel|map)\s/i.test(command.trim())) return null;
+  const error = response.split(/\r?\n/).find((line) =>
+    /unknown command|no such map|map.*(?:not found|not available|does not exist|invalid|incompatible)|(?:failed|unable|cannot|could not) to (?:find|load|download|mount)|(?:invalid|missing) map/i.test(line),
+  );
+  return error?.trim() || null;
+}
+
 export function getCommandCompletions<T extends { name: string }>(commands: T[], input: string, limit = 8): T[] {
   const commandToken = input.match(/^\s*([^\s]*)$/)?.[1].toLowerCase();
   if (!commandToken) return [];

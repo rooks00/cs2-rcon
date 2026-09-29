@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GAME_MODE_PRESETS, getCommandCompletions, getMapChangeCommand } from "../lib/commands";
+import { GAME_MODE_PRESETS, getCommandCompletions, getMapChangeCommand, getMapLoadError } from "../lib/commands";
 
 describe("GAME_MODE_PRESETS", () => {
   it("contains each current gamemodes.txt type/mode pair once", () => {
@@ -25,6 +25,12 @@ describe("GAME_MODE_PRESETS", () => {
 });
 
 describe("getMapChangeCommand", () => {
+  it("reports explicit map rejection without mistaking dispatch for confirmed loading", () => {
+    expect(getMapLoadError("changelevel de_old", "Map de_old not found")).toBe("Map de_old not found");
+    expect(getMapLoadError("host_workshop_map 123", "Failed to download workshop item")).toBe("Failed to download workshop item");
+    expect(getMapLoadError("host_workshop_map 123", "Level-transition command dispatched.")).toBeNull();
+    expect(getMapLoadError("say map not found", "map not found")).toBeNull();
+  });
   it("uses the Workshop ID when one was discovered during map sync", () => {
     expect(getMapChangeCommand({ name: "aim_botz", category: "Workshop", workshopId: "3070244462" })).toBe("host_workshop_map 3070244462");
   });
